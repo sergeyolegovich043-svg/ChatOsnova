@@ -8,11 +8,17 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
@@ -21,8 +27,10 @@ import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavController
+import com.example.chatosnova.R
 import com.example.chatosnova.domain.auth.User
 import com.example.chatosnova.presentation.navigation.Screen
 import com.example.chatosnova.presentation.viewmodel.ChatListViewModel
@@ -37,7 +45,19 @@ fun ChatListScreen(navController: NavController, viewModel: ChatListViewModel) {
     val list = if (searchQuery.isBlank()) chatPartners else searchResults
 
     Scaffold(
-        topBar = { TopAppBar(title = { Text("Chats") }) }
+        topBar = {
+            TopAppBar(
+                title = { Text(stringResource(R.string.title_chats)) },
+                navigationIcon = {
+                    IconButton(onClick = { navController.popBackStack() }) {
+                        Icon(
+                            imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                            contentDescription = stringResource(R.string.btn_back)
+                        )
+                    }
+                }
+            )
+        }
     ) { padding ->
         Column(
             modifier = Modifier
@@ -49,7 +69,7 @@ fun ChatListScreen(navController: NavController, viewModel: ChatListViewModel) {
                 value = searchQuery,
                 onValueChange = viewModel::onSearchQueryChange,
                 modifier = Modifier.fillMaxWidth(),
-                label = { Text("Search by nickname") }
+                label = { Text(stringResource(R.string.label_search_nickname)) }
             )
 
             Spacer(modifier = Modifier.height(12.dp))
@@ -77,18 +97,19 @@ private fun UserRow(user: User, onOpenProfile: () -> Unit, onOpenChat: () -> Uni
     Card(
         modifier = Modifier
             .fillMaxWidth()
-            .clickable { onOpenChat() }
+            .clickable { onOpenChat() },
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
     ) {
         Column(modifier = Modifier.padding(16.dp)) {
-            Text(user.nickname, style = MaterialTheme.typography.titleMedium)
+            Text(user.nickname, style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.onSurface)
             user.fullName?.let {
-                Text(it, style = MaterialTheme.typography.bodyMedium)
+                Text(it, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurface)
             }
             Spacer(modifier = Modifier.height(8.dp))
             Row(modifier = Modifier.fillMaxWidth()) {
-                Button(onClick = onOpenChat) { Text("Open chat") }
+                Button(onClick = onOpenChat, shape = RoundedCornerShape(12.dp)) { Text(stringResource(R.string.btn_open_chat)) }
                 Spacer(modifier = Modifier.weight(1f))
-                Button(onClick = onOpenProfile) { Text("Profile") }
+                Button(onClick = onOpenProfile, shape = RoundedCornerShape(12.dp)) { Text(stringResource(R.string.btn_profile)) }
             }
         }
     }
