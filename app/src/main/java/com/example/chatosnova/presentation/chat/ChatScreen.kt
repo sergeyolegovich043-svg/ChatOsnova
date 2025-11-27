@@ -1,3 +1,5 @@
+@file:OptIn(ExperimentalMaterial3Api::class)
+
 package com.example.chatosnova.presentation.chat
 
 import androidx.compose.foundation.layout.Arrangement
@@ -41,8 +43,6 @@ import com.example.chatosnova.presentation.components.ChatBubble
 import com.example.chatosnova.presentation.viewmodel.ChatViewModel
 import java.io.File
 import com.example.chatosnova.R
-
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ChatScreen(navController: NavController, chatId: String, onStartCall: (String) -> Unit, viewModel: ChatViewModel) {
     if (chatId.isBlank()) {
