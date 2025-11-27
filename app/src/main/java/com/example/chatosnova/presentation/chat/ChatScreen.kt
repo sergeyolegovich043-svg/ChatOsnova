@@ -12,6 +12,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Mic
 import androidx.compose.material.icons.filled.Send
 import androidx.compose.material.icons.filled.VideoCall
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -31,6 +32,7 @@ import com.example.chatosnova.presentation.components.ChatBubble
 import com.example.chatosnova.presentation.viewmodel.ChatViewModel
 import java.io.File
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ChatScreen(chatId: String, onStartCall: (String) -> Unit, viewModel: ChatViewModel) {
     viewModel.openChat(chatId)
