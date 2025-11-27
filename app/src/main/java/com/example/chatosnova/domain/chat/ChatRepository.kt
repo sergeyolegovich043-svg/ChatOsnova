@@ -11,4 +11,6 @@ interface ChatRepository {
     suspend fun sendMessage(chatId: String, text: String): Result<Unit>
     suspend fun sendVoiceMessage(chatId: String, audioFile: File, durationSeconds: Int): Result<Unit>
     suspend fun getParticipants(chatId: String): Result<List<User>>
+    suspend fun getChatPartnersForCurrentUser(currentUserId: String? = null): List<User>
+    suspend fun startChatWithUser(user: User, currentUser: User?): Chat
 }
