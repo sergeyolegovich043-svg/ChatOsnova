@@ -77,7 +77,8 @@ dependencies {
     implementation("androidx.room:room-ktx:2.6.1")
     ksp("androidx.room:room-compiler:2.6.1")
 
-    implementation("org.webrtc:google-webrtc:1.0.32006")
+    // Fixes "org.webrtc:google-webrtc:1.0.32006 not found" error.
+    implementation("com.infobip:google-webrtc:1.0.45036")
 
     testImplementation("junit:junit:4.13.2")
     androidTestImplementation("androidx.test.ext:junit:1.1.5")
