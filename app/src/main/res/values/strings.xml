@@ -1,0 +1,37 @@
+<resources>
+    <string name="app_name">ChatOsnova</string>
+    <string name="btn_back">Назад</string>
+    <string name="btn_login">Войти</string>
+    <string name="btn_register">Зарегистрироваться</string>
+    <string name="btn_send">Отправить</string>
+    <string name="btn_open_chat">Открыть чат</string>
+    <string name="btn_profile">Профиль</string>
+    <string name="btn_message">Написать сообщение</string>
+    <string name="btn_join_call">Присоединиться</string>
+    <string name="btn_record">Записать сообщение</string>
+    <string name="btn_end_call">Завершить звонок</string>
+    <string name="btn_toggle_video">Переключить видео</string>
+    <string name="btn_toggle_mic">Переключить микрофон</string>
+    <string name="label_username">Имя пользователя</string>
+    <string name="label_username_or_email">Имя пользователя или email</string>
+    <string name="label_email">Email</string>
+    <string name="label_password">Пароль</string>
+    <string name="label_confirm_password">Подтвердите пароль</string>
+    <string name="label_message">Сообщение</string>
+    <string name="label_search_nickname">Поиск по нику</string>
+    <string name="title_login">Вход</string>
+    <string name="title_register">Регистрация</string>
+    <string name="title_chats">Чаты</string>
+    <string name="title_chat">Чат %1$s</string>
+    <string name="title_profile">Профиль пользователя</string>
+    <string name="title_call">Звонок</string>
+    <string name="hint_chat_placeholder">Диалог в разработке</string>
+    <string name="text_user_not_found">Пользователь не найден</string>
+    <string name="text_participants">Участников: %1$d</string>
+    <string name="text_status">Статус: %1$s</string>
+    <string name="text_call_id">Идентификатор звонка: %1$s</string>
+    <string name="btn_create_account">Создать аккаунт</string>
+    <string name="btn_back_to_login">Назад к входу</string>
+    <string name="btn_start_call">Начать звонок</string>
+    <string name="btn_to_register">Перейти к регистрации</string>
+</resources>

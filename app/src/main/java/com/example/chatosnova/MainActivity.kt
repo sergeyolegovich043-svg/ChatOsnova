@@ -39,7 +39,7 @@ class MainActivity : ComponentActivity() {
 
         setContent {
             ChatOsnovaTheme {
-                Surface {
+                Surface(color = androidx.compose.material3.MaterialTheme.colorScheme.background) {
                     val navController = rememberNavController()
                     val authViewModel: AuthViewModel = viewModel(factory = AuthViewModel.factory(authRepository))
                     val chatViewModel: ChatViewModel = viewModel(factory = ChatViewModel.factory(chatRepository))
@@ -83,6 +83,7 @@ class MainActivity : ComponentActivity() {
                         ) { backStackEntry ->
                             val chatId = backStackEntry.arguments?.getString("chatId").orEmpty()
                             ChatScreen(
+                                navController = navController,
                                 chatId = chatId,
                                 onStartCall = { callId -> navController.navigate(Screen.Call.create(callId)) },
                                 viewModel = chatViewModel
@@ -107,7 +108,12 @@ class MainActivity : ComponentActivity() {
                             arguments = listOf(navArgument("callId") { type = NavType.StringType })
                         ) { backStackEntry ->
                             val callId = backStackEntry.arguments?.getString("callId").orEmpty()
-                            CallScreen(callId = callId, viewModel = callViewModel, onEnd = { navController.popBackStack() })
+                            CallScreen(
+                                callId = callId,
+                                viewModel = callViewModel,
+                                onEnd = { navController.popBackStack() },
+                                onBack = { navController.popBackStack() }
+                            )
                         }
                     }
                 }

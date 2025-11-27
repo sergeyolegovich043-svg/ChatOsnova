@@ -1,30 +1,33 @@
 package com.example.chatosnova.presentation.theme
 
-import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Shapes
 import androidx.compose.material3.darkColorScheme
-import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.graphics.Color
+import com.example.chatosnova.presentation.theme.ChatGptBackground
+import com.example.chatosnova.presentation.theme.ChatGptGreen
+import com.example.chatosnova.presentation.theme.ChatGptOnBackground
+import com.example.chatosnova.presentation.theme.ChatGptOnSurface
+import com.example.chatosnova.presentation.theme.ChatGptSurface
 
-private val LightColors = lightColorScheme(
-    surface = Background,
-    background = Background,
-    primary = Color(0xFF10A37F),
-    secondary = Color(0xFF4C5AE3)
-)
-
-private val DarkColors = darkColorScheme(
-    primary = Color(0xFF10A37F),
-    secondary = Color(0xFF4C5AE3)
+private val DarkColorScheme = darkColorScheme(
+    primary = ChatGptGreen,
+    onPrimary = Color.White,
+    background = ChatGptBackground,
+    onBackground = ChatGptOnBackground,
+    surface = ChatGptSurface,
+    onSurface = ChatGptOnSurface,
+    secondary = ChatGptGreen,
+    onSecondary = Color.White
 )
 
 @Composable
 fun ChatOsnovaTheme(content: @Composable () -> Unit) {
-    val colors = if (isSystemInDarkTheme()) DarkColors else LightColors
     MaterialTheme(
-        colorScheme = colors,
+        colorScheme = DarkColorScheme,
         typography = Typography,
+        shapes = Shapes(),
         content = content
     )
 }
