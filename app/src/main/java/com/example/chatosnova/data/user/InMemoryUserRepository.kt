@@ -22,12 +22,14 @@ class InMemoryUserRepository : UserRepository {
         users.firstOrNull { it.id == userId }
     }
 
-    override suspend fun addOrUpdateUser(user: User) = withContext(Dispatchers.IO) {
-        val index = users.indexOfFirst { it.id == user.id }
-        if (index >= 0) {
-            users[index] = user
-        } else {
-            users.add(user)
+    override suspend fun addOrUpdateUser(user: User) {
+        withContext(Dispatchers.IO) {
+            val index = users.indexOfFirst { it.id == user.id }
+            if (index >= 0) {
+                users[index] = user
+            } else {
+                users.add(user)
+            }
         }
     }
 }
