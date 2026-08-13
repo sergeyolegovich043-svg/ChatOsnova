@@ -610,9 +610,6 @@ a:focus-visible {
   min-width: 0;
 }
 
-.conversation-row-wrap:hover .conversation-actions-trigger,
-.conversation-row-wrap:focus-within .conversation-actions-trigger { opacity: 1; }
-
 .conversation-row {
   display: flex;
   width: 100%;
@@ -678,8 +675,10 @@ a:focus-visible {
 
 .conversation-title-line time {
   flex: 0 0 auto;
+  margin-left: auto;
   color: #93a0a9;
   font-size: 11px;
+  text-align: right;
 }
 
 .conversation-preview-line > span {
@@ -709,31 +708,9 @@ a:focus-visible {
 .unread-badge svg { flex: 0 0 auto; }
 .unread-badge span { line-height: 1; }
 
-.conversation-actions-trigger {
-  position: absolute;
-  z-index: 2;
-  top: 7px;
-  right: 6px;
-  display: grid;
-  width: 28px;
-  height: 28px;
-  place-items: center;
-  border: 1px solid rgba(255,255,255,.075);
-  border-radius: 9px;
-  color: #8f8799;
-  background: rgba(20,16,29,.88);
-  box-shadow: 0 5px 16px rgba(0,0,0,.18);
-  opacity: 0;
-  transition: opacity 140ms ease, color 140ms ease, background 140ms ease;
-}
-
-.conversation-actions-trigger:hover { color: #fff; background: rgba(139,108,255,.18); }
-
 .conversation-actions-menu {
-  position: absolute;
-  z-index: 15;
-  top: 36px;
-  right: 6px;
+  position: fixed;
+  z-index: 100;
   display: flex;
   width: 168px;
   flex-direction: column;
@@ -2224,8 +2201,6 @@ a:focus-visible {
     left: 10px;
     width: auto;
   }
-  .conversation-actions-trigger { opacity: 1; }
-
   .messenger-shell { display: block; }
   .chat-sidebar,
   .chat-stage { position: absolute; inset: 0; }

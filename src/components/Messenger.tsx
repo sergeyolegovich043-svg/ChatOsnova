@@ -73,6 +73,12 @@ type MessageMenu = {
   y: number;
 };
 
+type ChatMenu = {
+  conversationId: string;
+  x: number;
+  y: number;
+};
+
 const timeFormatter = new Intl.DateTimeFormat("ru-RU", { hour: "2-digit", minute: "2-digit" });
 const weekdayFormatter = new Intl.DateTimeFormat("ru-RU", { weekday: "short" });
 const dateFormatter = new Intl.DateTimeFormat("ru-RU", { day: "numeric", month: "long" });
@@ -185,7 +191,7 @@ export function Messenger({ user, setUser, onLogout, canInstall, installApp, the
   const [reactionPickerFor, setReactionPickerFor] = useState<string | null>(null);
   const [messageMenu, setMessageMenu] = useState<MessageMenu | null>(null);
   const [forwardingMessage, setForwardingMessage] = useState<Message | null>(null);
-  const [chatMenuFor, setChatMenuFor] = useState<string | null>(null);
+  const [chatMenuFor, setChatMenuFor] = useState<ChatMenu | null>(null);
   const [toast, setToast] = useState("");
   const [messagePopups, setMessagePopups] = useState<MessagePopup[]>([]);
   const socketRef = useRef<Socket | null>(null);
@@ -493,6 +499,18 @@ export function Messenger({ user, setUser, onLogout, canInstall, installApp, the
     });
   }
 
+  function openChatMenu(conversationId: string, x: number, y: number) {
+    const width = 180;
+    const height = 92;
+    setMessageMenu(null);
+    setReactionPickerFor(null);
+    setChatMenuFor({
+      conversationId,
+      x: Math.max(10, Math.min(x + 4, window.innerWidth - width - 10)),
+      y: Math.max(10, Math.min(y + 4, window.innerHeight - height - 10))
+    });
+  }
+
   const filteredConversations = useMemo(() => {
     const query = search.trim().toLowerCase();
     if (!query) return conversations;
@@ -792,6 +810,18 @@ export function Messenger({ user, setUser, onLogout, canInstall, installApp, the
                 <button
                   className={`conversation-row ${activeId === conversation.id ? "active" : ""} ${conversation.unreadCount > 0 ? "unread" : ""}`}
                   onClick={() => { setChatMenuFor(null); openConversation(conversation.id); }}
+                  aria-haspopup="menu"
+                  aria-expanded={chatMenuFor?.conversationId === conversation.id}
+                  onContextMenu={(event) => {
+                    event.preventDefault();
+                    openChatMenu(conversation.id, event.clientX, event.clientY);
+                  }}
+                  onKeyDown={(event) => {
+                    if (event.key !== "ContextMenu" && !(event.shiftKey && event.key === "F10")) return;
+                    event.preventDefault();
+                    const rect = event.currentTarget.getBoundingClientRect();
+                    openChatMenu(conversation.id, rect.right, rect.top + 24);
+                  }}
                 >
                   <Avatar
                     user={directMember}
@@ -814,20 +844,18 @@ export function Messenger({ user, setUser, onLogout, canInstall, installApp, the
                     </span>
                   </span>
                 </button>
-                <button className="conversation-actions-trigger" data-chat-menu type="button" onClick={() => setChatMenuFor((current) => current === conversation.id ? null : conversation.id)} aria-label={`Действия с чатом ${conversation.title}`}>
-                  <MoreHorizontal size={17} weight="bold" />
-                </button>
-                {chatMenuFor === conversation.id && (
-                  <div className="conversation-actions-menu" data-chat-menu>
-                    <button type="button" onClick={() => void togglePinned(conversation)}>
+                {chatMenuFor?.conversationId === conversation.id && createPortal(
+                  <div className="conversation-actions-menu" data-chat-menu role="menu" aria-label={`Действия с чатом ${conversation.title}`} style={{ left: chatMenuFor.x, top: chatMenuFor.y }}>
+                    <button type="button" role="menuitem" onClick={() => void togglePinned(conversation)}>
                       {conversation.pinned ? <PushPinSlash size={16} /> : <PushPin size={16} />}
                       {conversation.pinned ? "Открепить" : "Закрепить"}
                     </button>
-                    <button className="danger" type="button" onClick={() => void removeConversation(conversation)}>
+                    <button className="danger" type="button" role="menuitem" onClick={() => void removeConversation(conversation)}>
                       {conversation.kind === "group" && ownRole !== "owner" ? <SignOut size={16} /> : <Trash2 size={16} />}
                       {removalLabel}
                     </button>
-                  </div>
+                  </div>,
+                  document.body
                 )}
               </div>
             );
