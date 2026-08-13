@@ -1,0 +1,11 @@
+.git
+.gitignore
+.env
+.gradle
+node_modules
+dist
+dist-server
+legacy-android/app/build
+data
+uploads
+*.log
