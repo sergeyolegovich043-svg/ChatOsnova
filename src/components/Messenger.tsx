@@ -718,7 +718,7 @@ export function Messenger({ user, setUser, onLogout, canInstall, installApp }: M
           <div className="search-field">
             <Search size={18} />
             <input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Поиск по чатам" aria-label="Поиск по чатам" />
-            {search && <button onClick={() => setSearch("")} aria-label="Очистить поиск"><X size={16} /></button>}
+            {search && <button onClick={() => setSearch("")} aria-label="Очистить поиск"><X size={16} weight="bold" /></button>}
           </div>
         </div>
 
@@ -821,7 +821,7 @@ export function Messenger({ user, setUser, onLogout, canInstall, installApp }: M
                 </span>
               </button>
               <div className="chat-header-actions">
-                <button className="icon-button" onClick={() => setDetailsOpen(true)} aria-label="Информация о чате"><Info size={20} /></button>
+                <button className="icon-button" onClick={() => setDetailsOpen(true)} aria-label="Информация о чате"><Info size={20} weight="regular" /></button>
                 <button className="icon-button menu-placeholder" onClick={() => setDetailsOpen(true)} aria-label="Меню чата"><MoreHorizontal size={23} weight="bold" /></button>
               </div>
             </header>
@@ -925,13 +925,13 @@ export function Messenger({ user, setUser, onLogout, canInstall, installApp }: M
                 <div className="composer-context">
                   <span className="context-icon">{editing ? <Pencil size={17} /> : <Reply size={17} />}</span>
                   <span><strong>{editing ? "Редактирование" : `Ответ для ${replyTo?.sender.displayName}`}</strong><small>{editing?.body ?? replyTo?.body ?? "Вложение"}</small></span>
-                  <button onClick={() => { setReplyTo(null); setEditing(null); setDraft(""); }} aria-label="Отменить"><X size={18} /></button>
+                  <button onClick={() => { setReplyTo(null); setEditing(null); setDraft(""); }} aria-label="Отменить"><X size={18} weight="bold" /></button>
                 </div>
               )}
               {(attachments.length > 0 || uploading) && (
                 <div className="attachment-drafts">
                   {attachments.map((attachment) => (
-                    <span key={attachment.id}><File size={16} /><span>{attachment.name}</span><button onClick={() => setAttachments((current) => current.filter((item) => item.id !== attachment.id))}><X size={14} /></button></span>
+                    <span key={attachment.id}><File size={16} /><span>{attachment.name}</span><button onClick={() => setAttachments((current) => current.filter((item) => item.id !== attachment.id))}><X size={14} weight="bold" /></button></span>
                   ))}
                   {uploading && <span className="upload-chip"><span className="mini-loader" />Загрузка…</span>}
                 </div>

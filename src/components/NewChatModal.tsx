@@ -75,7 +75,7 @@ export function NewChatModal({ onClose, onCreated }: NewChatModalProps) {
             <h2 id="new-chat-title">Новый чат</h2>
             <p>Выберите коллегу или создайте группу</p>
           </div>
-          <button className="icon-button" onClick={onClose} aria-label="Закрыть"><X size={20} /></button>
+          <button className="icon-button" onClick={onClose} aria-label="Закрыть"><X size={20} weight="bold" /></button>
         </header>
 
         <div className="segmented-control">

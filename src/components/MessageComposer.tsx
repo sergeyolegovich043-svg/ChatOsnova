@@ -274,7 +274,7 @@ export function MessageComposer({
     <div className="composer-shell">
       {emojiOpen && (
         <div className="composer-emoji-popover">
-          <button className="emoji-close" type="button" onClick={() => setEmojiOpen(false)} aria-label="Закрыть эмодзи"><X size={16} /></button>
+          <button className="emoji-close" type="button" onClick={() => setEmojiOpen(false)} aria-label="Закрыть эмодзи"><X size={16} weight="bold" /></button>
           <EmojiPicker onSelect={insertEmoji} />
         </div>
       )}

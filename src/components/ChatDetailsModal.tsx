@@ -30,7 +30,7 @@ export function ChatDetailsModal({ conversation, currentUser, onClose }: ChatDet
       <section className="modal-card chat-details-modal" role="dialog" aria-modal="true" aria-labelledby="chat-details-title">
         <header className="modal-header chat-details-header">
           <div><span className="modal-kicker">Карточка чата</span><h2 id="chat-details-title">Информация</h2></div>
-          <button className="icon-button" type="button" onClick={onClose} aria-label="Закрыть"><X size={20} /></button>
+          <button className="icon-button" type="button" onClick={onClose} aria-label="Закрыть"><X size={20} weight="bold" /></button>
         </header>
 
         <div className="chat-details-hero">
@@ -54,7 +54,7 @@ export function ChatDetailsModal({ conversation, currentUser, onClose }: ChatDet
         {conversation.kind === "direct" ? (
           <div className="details-facts">
             <div><span className="details-fact-icon"><At size={19} /></span><span><small>Имя пользователя</small><strong>@{otherMember?.username}</strong></span></div>
-            <div><span className="details-fact-icon"><Info size={19} /></span><span><small>Формат</small><strong>Личный диалог</strong></span></div>
+            <div><span className="details-fact-icon"><Info size={19} weight="regular" /></span><span><small>Формат</small><strong>Личный диалог</strong></span></div>
           </div>
         ) : (
           <div className="details-members">

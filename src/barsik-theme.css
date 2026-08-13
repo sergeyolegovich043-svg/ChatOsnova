@@ -138,6 +138,7 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, a:focus-visib
 .search-field { border: 1px solid rgba(255,255,255,.07); border-radius: 14px; color: #807a8e; background: rgba(0,0,0,.18); transition: border-color 170ms ease,background 170ms ease,box-shadow 170ms ease; }
 .search-field:focus-within { border-color: rgba(156,126,255,.42); color: #b8a6ff; background: rgba(10,7,17,.32); box-shadow: 0 0 0 4px rgba(139,108,255,.075); }
 .search-field input { color: #eeeaf7; }
+.search-field input:focus-visible { box-shadow: none; }
 .search-field input::placeholder { color: #716b7d; }
 .search-field button { color: #7e778a; }
 .conversation-list { padding: 5px 8px 10px; }

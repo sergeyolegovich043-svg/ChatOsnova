@@ -133,7 +133,7 @@ export function ProfileModal({ user, canInstall, installApp, onUserChange, onLog
       <section className="modal-card profile-modal" role="dialog" aria-modal="true" aria-labelledby="profile-title">
         <header className="modal-header">
           <div><h2 id="profile-title">Профиль</h2><p>Ваши данные и настройки приложения</p></div>
-          <button className="icon-button" onClick={onClose} aria-label="Закрыть"><X size={20} /></button>
+          <button className="icon-button" onClick={onClose} aria-label="Закрыть"><X size={20} weight="bold" /></button>
         </header>
         <div className="profile-identity">
           <div className="profile-avatar-editor">

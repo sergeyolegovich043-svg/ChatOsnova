@@ -40,7 +40,7 @@ export function ForwardMessageModal({ message, conversations, currentUser, onFor
       <section className="modal-card forward-modal" role="dialog" aria-modal="true" aria-labelledby="forward-title">
         <header className="modal-header">
           <div><span className="modal-kicker">Пересылка</span><h2 id="forward-title">Выберите чат</h2></div>
-          <button className="icon-button" type="button" onClick={onClose} aria-label="Закрыть"><X size={20} /></button>
+          <button className="icon-button" type="button" onClick={onClose} aria-label="Закрыть"><X size={20} weight="bold" /></button>
         </header>
 
         <div className="forward-preview">
