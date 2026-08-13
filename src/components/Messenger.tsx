@@ -7,7 +7,9 @@ import {
   type ChangeEvent,
   type KeyboardEvent
 } from "react";
+import { createPortal } from "react-dom";
 import {
+  ArrowBendUpRight as Forward,
   ArrowDown,
   ArrowLeft,
   Checks as CheckCheck,
@@ -61,6 +63,12 @@ type MessagePopup = {
   body: string;
   avatarColor: string;
   avatarUrl: string | null;
+};
+
+type MessageMenu = {
+  messageId: string;
+  x: number;
+  y: number;
 };
 
 const timeFormatter = new Intl.DateTimeFormat("ru-RU", { hour: "2-digit", minute: "2-digit" });
@@ -173,6 +181,7 @@ export function Messenger({ user, setUser, onLogout, canInstall, installApp }: M
   const [profileOpen, setProfileOpen] = useState(false);
   const [detailsOpen, setDetailsOpen] = useState(false);
   const [reactionPickerFor, setReactionPickerFor] = useState<string | null>(null);
+  const [messageMenu, setMessageMenu] = useState<MessageMenu | null>(null);
   const [forwardingMessage, setForwardingMessage] = useState<Message | null>(null);
   const [chatMenuFor, setChatMenuFor] = useState<string | null>(null);
   const [toast, setToast] = useState("");
@@ -444,7 +453,40 @@ export function Messenger({ user, setUser, onLogout, canInstall, installApp }: M
     setEditing(null);
     setDetailsOpen(false);
     setReactionPickerFor(null);
+    setMessageMenu(null);
   }, [activeId]);
+
+  useEffect(() => {
+    if (!messageMenu && !reactionPickerFor) return;
+    const dismissMenus = (event: PointerEvent) => {
+      const target = event.target instanceof Element ? event.target : null;
+      if (target?.closest("[data-message-menu], .message-reaction-picker")) return;
+      setMessageMenu(null);
+      setReactionPickerFor(null);
+    };
+    const closeOnEscape = (event: globalThis.KeyboardEvent) => {
+      if (event.key !== "Escape") return;
+      setMessageMenu(null);
+      setReactionPickerFor(null);
+    };
+    document.addEventListener("pointerdown", dismissMenus);
+    document.addEventListener("keydown", closeOnEscape);
+    return () => {
+      document.removeEventListener("pointerdown", dismissMenus);
+      document.removeEventListener("keydown", closeOnEscape);
+    };
+  }, [messageMenu, reactionPickerFor]);
+
+  function openMessageMenu(messageId: string, own: boolean, x: number, y: number) {
+    const width = 206;
+    const height = own ? 222 : 134;
+    setReactionPickerFor(null);
+    setMessageMenu({
+      messageId,
+      x: Math.max(10, Math.min(x + 4, window.innerWidth - width - 10)),
+      y: Math.max(10, Math.min(y + 4, window.innerHeight - height - 10))
+    });
+  }
 
   const filteredConversations = useMemo(() => {
     const query = search.trim().toLowerCase();
@@ -853,10 +895,18 @@ export function Messenger({ user, setUser, onLogout, canInstall, installApp }: M
                         <div
                           className={`message-bubble ${message.deletedAt ? "deleted" : ""}`}
                           tabIndex={0}
+                          aria-haspopup={message.deletedAt ? undefined : "menu"}
+                          aria-expanded={messageMenu?.messageId === message.id}
                           onContextMenu={(event) => {
                             if (message.deletedAt) return;
                             event.preventDefault();
-                            setReactionPickerFor(message.id);
+                            openMessageMenu(message.id, own, event.clientX, event.clientY);
+                          }}
+                          onKeyDown={(event) => {
+                            if (message.deletedAt || (event.key !== "ContextMenu" && !(event.shiftKey && event.key === "F10"))) return;
+                            event.preventDefault();
+                            const rect = event.currentTarget.getBoundingClientRect();
+                            openMessageMenu(message.id, own, own ? rect.right : rect.left, rect.bottom);
                           }}
                         >
                           {!own && activeConversation.kind === "group" && !grouped && <strong className="message-sender" style={{ color: message.sender.avatarColor }}>{message.sender.displayName}</strong>}
@@ -902,14 +952,21 @@ export function Messenger({ user, setUser, onLogout, canInstall, installApp }: M
                               <EmojiPicker compact title="Быстрые реакции" onSelect={(emoji) => void toggleReaction(message, emoji)} />
                             </div>
                           )}
-                          {!message.deletedAt && (
-                            <span className="message-actions">
-                              <button onClick={() => setReactionPickerFor((current) => current === message.id ? null : message.id)} aria-label="Поставить реакцию"><SmilePlus size={15} /></button>
-                              <button onClick={() => { setReplyTo(message); setEditing(null); inputRef.current?.focus(); }} aria-label="Ответить"><Reply size={15} /></button>
-                              <button onClick={() => setForwardingMessage(message)} aria-label="Переслать"><PaperPlaneTilt size={15} /></button>
-                              {own && <button onClick={() => beginEdit(message)} aria-label="Изменить"><Pencil size={14} /></button>}
-                              {own && <button onClick={() => void deleteMessage(message)} aria-label="Удалить"><Trash2 size={14} /></button>}
-                            </span>
+                          {messageMenu?.messageId === message.id && createPortal(
+                            <div
+                              className="message-context-menu"
+                              data-message-menu
+                              role="menu"
+                              aria-label="Действия с сообщением"
+                              style={{ left: messageMenu.x, top: messageMenu.y }}
+                            >
+                              <button type="button" role="menuitem" onClick={() => { setMessageMenu(null); setReactionPickerFor(message.id); }}><SmilePlus size={19} weight="regular" /><span>Добавить реакцию</span></button>
+                              <button type="button" role="menuitem" onClick={() => { setMessageMenu(null); setReplyTo(message); setEditing(null); inputRef.current?.focus(); }}><Reply size={19} weight="regular" /><span>Ответить</span></button>
+                              <button type="button" role="menuitem" onClick={() => { setMessageMenu(null); setForwardingMessage(message); }}><Forward size={19} weight="regular" /><span>Переслать</span></button>
+                              {own && <button type="button" role="menuitem" onClick={() => { setMessageMenu(null); beginEdit(message); }}><Pencil size={19} weight="regular" /><span>Изменить</span></button>}
+                              {own && <button className="danger" type="button" role="menuitem" onClick={() => { setMessageMenu(null); void deleteMessage(message); }}><Trash2 size={19} weight="regular" /><span>Удалить</span></button>}
+                            </div>,
+                            document.body
                           )}
                         </div>
                       </article>

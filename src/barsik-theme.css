@@ -190,9 +190,12 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, a:focus-visib
 .reply-quote span { color: #aaa3b4; }
 .message-row.own .reply-quote { border-left-color: #ffbd92; background: rgba(15,7,26,.15); }
 .message-row.own .reply-quote strong { color: #ffe0cb; }
-.message-actions { border-color: rgba(255,255,255,.08); background: rgba(24,19,36,.94); box-shadow: 0 9px 25px rgba(0,0,0,.32); }
-.message-actions button { color: #aaa2b8; }
-.message-actions button:hover { color: #fff; background: rgba(255,255,255,.08); }
+.message-context-menu { border-color: rgba(255,255,255,.1); color: #f4f0fa; background: rgba(24,19,36,.97); box-shadow: 0 18px 48px rgba(0,0,0,.42),inset 0 1px 0 rgba(255,255,255,.06); backdrop-filter: blur(24px); }
+.message-context-menu button { color: #ddd7e6; }
+.message-context-menu button svg { color: #aaa2b8; }
+.message-context-menu button:hover { color: #fff; background: rgba(255,255,255,.08); }
+.message-context-menu button:hover svg { color: #bca8ff; }
+.message-context-menu button.danger,.message-context-menu button.danger svg { color: #ff829b; }
 .file-attachment { border-color: rgba(255,255,255,.09); color: #f3eff9; background: rgba(0,0,0,.13); }
 .file-attachment small { color: #aaa1b4; }
 .file-icon { color: #c0adff; background: rgba(141,107,255,.18); }

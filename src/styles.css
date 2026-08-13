@@ -1124,43 +1124,43 @@ a:focus-visible {
   color: #269a8d;
 }
 
-.message-actions {
-  position: absolute;
-  top: 50%;
-  right: calc(100% + 7px);
+.message-context-menu {
+  position: fixed;
+  z-index: 100;
   display: flex;
-  padding: 3px;
-  border-radius: 10px;
-  opacity: 0;
-  background: rgba(255, 255, 255, 0.94);
-  box-shadow: 0 4px 13px rgba(31, 50, 60, 0.12);
-  transform: translateY(-50%);
-  transition: opacity 120ms ease;
+  width: 196px;
+  flex-direction: column;
+  gap: 2px;
+  padding: 6px;
+  border: 1px solid rgba(31, 50, 60, 0.1);
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.97);
+  box-shadow: 0 16px 42px rgba(31, 50, 60, 0.2);
+  animation: message-menu-in 120ms ease-out;
 }
 
-.message-row:not(.own) .message-actions {
-  right: auto;
-  left: calc(100% + 7px);
+@keyframes message-menu-in {
+  from { opacity: 0; transform: translateY(-4px) scale(.98); }
 }
 
-.message-bubble:hover .message-actions,
-.message-bubble:focus-within .message-actions {
-  opacity: 1;
-}
-
-.message-actions button {
-  display: grid;
-  width: 27px;
-  height: 27px;
-  padding: 0;
-  place-items: center;
+.message-context-menu button {
+  display: flex;
+  min-height: 40px;
+  align-items: center;
+  gap: 11px;
+  padding: 0 10px;
   border: 0;
-  border-radius: 7px;
-  color: #70808b;
+  border-radius: 9px;
+  color: #354550;
+  text-align: left;
   background: transparent;
 }
 
-.message-actions button:hover { color: var(--brand); background: #edf6f5; }
+.message-context-menu button svg { flex: 0 0 auto; color: #687a86; }
+.message-context-menu button span { font-size: 12.5px; font-weight: 680; }
+.message-context-menu button:hover { color: var(--brand); background: #edf6f5; }
+.message-context-menu button:hover svg { color: var(--brand); }
+.message-context-menu button.danger, .message-context-menu button.danger svg { color: var(--danger); }
 
 .forwarded-label {
   display: inline-flex;
@@ -2215,8 +2215,6 @@ a:focus-visible {
   .message-area { padding: 13px 9px; }
   .messages-list { width: 100%; }
   .message-bubble { max-width: 82%; }
-  .message-actions { position: static; display: none; margin-top: 5px; opacity: 1; transform: none; box-shadow: none; background: transparent; }
-  .message-bubble:focus-within .message-actions { display: flex; }
   .composer-wrap { padding: 7px 7px max(7px, env(safe-area-inset-bottom)); }
   .composer-hint { display: none; }
   .composer { border-radius: 16px; }
