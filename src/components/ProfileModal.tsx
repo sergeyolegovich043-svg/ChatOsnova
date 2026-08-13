@@ -4,19 +4,23 @@ import {
   BellSlash as BellOff,
   DownloadSimple as Download,
   FloppyDisk as Save,
+  MoonStars,
   SignOut as LogOut,
+  Sun,
   Trash,
   UploadSimple,
   X
 } from "@phosphor-icons/react";
 import { api } from "../api";
-import type { User } from "../types";
+import type { ColorTheme, User } from "../types";
 import { Avatar } from "./Avatar";
 
 type ProfileModalProps = {
   user: User;
   canInstall: boolean;
   installApp: () => Promise<boolean>;
+  theme: ColorTheme;
+  onThemeChange: (theme: ColorTheme) => void;
   onUserChange: (user: User) => void;
   onLogout: () => Promise<void>;
   onClose: () => void;
@@ -29,7 +33,7 @@ function urlBase64ToUint8Array(value: string) {
   return Uint8Array.from([...rawData].map((character) => character.charCodeAt(0)));
 }
 
-export function ProfileModal({ user, canInstall, installApp, onUserChange, onLogout, onClose }: ProfileModalProps) {
+export function ProfileModal({ user, canInstall, installApp, theme, onThemeChange, onUserChange, onLogout, onClose }: ProfileModalProps) {
   const [saving, setSaving] = useState(false);
   const [avatarSaving, setAvatarSaving] = useState(false);
   const [error, setError] = useState("");
@@ -164,6 +168,18 @@ export function ProfileModal({ user, canInstall, installApp, onUserChange, onLog
               <span><strong>Установить BarsikChat</strong><small>Открывать как отдельное приложение с уведомлениями</small></span>
             </button>
           )}
+          <button
+            className="theme-setting"
+            type="button"
+            role="switch"
+            aria-checked={theme === "light"}
+            aria-label={theme === "light" ? "Включить тёмную тему" : "Включить светлую тему"}
+            onClick={() => onThemeChange(theme === "light" ? "dark" : "light")}
+          >
+            <span className="setting-icon">{theme === "light" ? <Sun size={19} weight="regular" /> : <MoonStars size={19} weight="regular" />}</span>
+            <span><strong>{theme === "light" ? "Светлая тема" : "Тёмная тема"}</strong><small>{theme === "light" ? "Переключить на тёмное оформление" : "Переключить на светлое оформление"}</small></span>
+            <span className="theme-switch" aria-hidden="true"><span /></span>
+          </button>
           <button className="danger-setting" onClick={onLogout}>
             <span className="setting-icon"><LogOut size={19} /></span>
             <span><strong>Выйти</strong><small>Завершить сеанс на этом устройстве</small></span>

@@ -6,6 +6,17 @@ import "@fontsource-variable/manrope";
 import App from "./App";
 import "./styles.css";
 import "./barsik-theme.css";
+import "./light-theme.css";
+
+let savedTheme: string | null = null;
+try {
+  savedTheme = localStorage.getItem("barsikchat.theme");
+} catch {
+  // Storage can be unavailable in hardened browser modes; dark remains the safe default.
+}
+const initialTheme = savedTheme === "light" ? "light" : "dark";
+document.documentElement.dataset.theme = initialTheme;
+document.querySelector('meta[name="theme-color"]')?.setAttribute("content", initialTheme === "light" ? "#f5f2fa" : "#0b0914");
 
 const updateServiceWorker = registerSW({
   immediate: true,

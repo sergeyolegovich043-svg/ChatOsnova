@@ -1,3 +1,5 @@
+export type ColorTheme = "dark" | "light";
+
 export type User = {
   id: string;
   email: string;

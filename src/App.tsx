@@ -4,7 +4,7 @@ import { AuthScreen } from "./components/AuthScreen";
 import { BrandLogo } from "./components/BrandLogo";
 import { InstallAppPrompt } from "./components/InstallAppPrompt";
 import { Messenger } from "./components/Messenger";
-import type { User } from "./types";
+import type { ColorTheme, User } from "./types";
 
 export type InstallPromptEvent = Event & {
   prompt: () => Promise<void>;
@@ -12,6 +12,7 @@ export type InstallPromptEvent = Event & {
 };
 
 const INSTALL_DISMISSED_KEY = "barsikchat.install-prompt-dismissed";
+const THEME_KEY = "barsikchat.theme";
 
 function isStandaloneMode() {
   const navigatorWithStandalone = navigator as Navigator & { standalone?: boolean };
@@ -23,6 +24,7 @@ function isIosBrowser() {
 }
 
 export default function App() {
+  const [theme, setTheme] = useState<ColorTheme>(() => document.documentElement.dataset.theme === "light" ? "light" : "dark");
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
   const [installPrompt, setInstallPrompt] = useState<InstallPromptEvent | null>(null);
@@ -30,6 +32,17 @@ export default function App() {
   const [installBusy, setInstallBusy] = useState(false);
   const [installed, setInstalled] = useState(isStandaloneMode);
   const [iosBrowser] = useState(isIosBrowser);
+
+  function changeTheme(nextTheme: ColorTheme) {
+    document.documentElement.dataset.theme = nextTheme;
+    document.querySelector('meta[name="theme-color"]')?.setAttribute("content", nextTheme === "light" ? "#f5f2fa" : "#0b0914");
+    try {
+      localStorage.setItem(THEME_KEY, nextTheme);
+    } catch {
+      // The selected theme still applies for the current session when storage is blocked.
+    }
+    setTheme(nextTheme);
+  }
 
   useEffect(() => {
     api.me()
@@ -118,6 +131,8 @@ export default function App() {
         setUser={setUser}
         canInstall={Boolean(installPrompt)}
         installApp={installApp}
+        theme={theme}
+        onThemeChange={changeTheme}
         onLogout={() => setUser(null)}
       />
     );

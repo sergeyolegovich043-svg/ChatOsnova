@@ -33,7 +33,7 @@ import {
 } from "@phosphor-icons/react";
 import { io, type Socket } from "socket.io-client";
 import { api } from "../api";
-import type { Attachment, Conversation, Member, Message, User } from "../types";
+import type { Attachment, ColorTheme, Conversation, Member, Message, User } from "../types";
 import type { RecordedMediaKind } from "../media";
 import { Avatar } from "./Avatar";
 import { BrandLogo } from "./BrandLogo";
@@ -51,6 +51,8 @@ type MessengerProps = {
   onLogout: () => void;
   canInstall: boolean;
   installApp: () => Promise<boolean>;
+  theme: ColorTheme;
+  onThemeChange: (theme: ColorTheme) => void;
 };
 
 type TypingPerson = { conversationId: string; userId: string; displayName: string };
@@ -161,7 +163,7 @@ function realtimeLastMessage(message: Message): NonNullable<Conversation["lastMe
   };
 }
 
-export function Messenger({ user, setUser, onLogout, canInstall, installApp }: MessengerProps) {
+export function Messenger({ user, setUser, onLogout, canInstall, installApp, theme, onThemeChange }: MessengerProps) {
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [conversationsLoading, setConversationsLoading] = useState(true);
   const [activeId, setActiveId] = useState(() => new URLSearchParams(window.location.search).get("chat"));
@@ -1021,7 +1023,7 @@ export function Messenger({ user, setUser, onLogout, canInstall, installApp }: M
       {newChatOpen && <NewChatModal onClose={() => setNewChatOpen(false)} onCreated={(conversation) => { setConversations((current) => [conversation, ...current.filter((item) => item.id !== conversation.id)]); setNewChatOpen(false); openConversation(conversation.id); }} />}
       {forwardingMessage && <ForwardMessageModal message={forwardingMessage} conversations={conversations} currentUser={user} onForward={forwardMessage} onClose={() => setForwardingMessage(null)} />}
       {detailsOpen && activeConversation && <ChatDetailsModal conversation={activeConversation} currentUser={user} onClose={() => setDetailsOpen(false)} />}
-      {profileOpen && <ProfileModal user={user} canInstall={canInstall} installApp={installApp} onUserChange={updateCurrentUser} onLogout={logout} onClose={() => setProfileOpen(false)} />}
+      {profileOpen && <ProfileModal user={user} canInstall={canInstall} installApp={installApp} theme={theme} onThemeChange={onThemeChange} onUserChange={updateCurrentUser} onLogout={logout} onClose={() => setProfileOpen(false)} />}
       {messagePopups.length > 0 && (
         <aside className="message-popup-stack" aria-live="polite" aria-label="Новые сообщения">
           {messagePopups.map((popup) => (
