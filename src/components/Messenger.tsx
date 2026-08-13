@@ -891,10 +891,11 @@ export function Messenger({ user, setUser, onLogout, canInstall, installApp, the
                   const previous = activeMessages[index - 1];
                   const showDate = !previous || !isSameDay(new Date(previous.createdAt), new Date(message.createdAt));
                   const grouped = previous && previous.sender.id === message.sender.id && !showDate && new Date(message.createdAt).getTime() - new Date(previous.createdAt).getTime() < 5 * 60_000;
+                  const hasReactions = (message.reactions?.length ?? 0) > 0;
                   return (
                     <div key={message.id}>
                       {showDate && <div className="date-divider"><span>{dayLabel(message.createdAt)}</span></div>}
-                      <article className={`message-row ${own ? "own" : ""} ${grouped ? "grouped" : ""}`}>
+                      <article className={`message-row ${own ? "own" : ""} ${grouped ? "grouped" : ""} ${hasReactions ? "has-reactions" : ""}`}>
                         {!own && !grouped && <Avatar user={message.sender} size="sm" />}
                         {!own && grouped && <span className="avatar-spacer" />}
                         <div
@@ -937,7 +938,7 @@ export function Messenger({ user, setUser, onLogout, canInstall, installApp, the
                             <time>{timeFormatter.format(new Date(message.createdAt))}</time>
                             {own && <CheckCheck size={15} />}
                           </span>
-                          {(message.reactions?.length ?? 0) > 0 && (
+                          {hasReactions && (
                             <div className="message-reactions" aria-label="Реакции на сообщение">
                               {(message.reactions ?? []).map((reaction) => (
                                 <button

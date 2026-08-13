@@ -337,11 +337,22 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, a:focus-visib
 /* Reactions, media messages and premium composer */
 
 .message-reactions {
+  position: absolute;
+  z-index: 3;
+  top: calc(100% - 5px);
+  left: 9px;
   display: flex;
-  flex-wrap: wrap;
+  max-width: min(320px,calc(100vw - 76px));
+  flex-wrap: nowrap;
   gap: 4px;
-  margin: 6px 0 0;
+  margin: 0;
+  overflow-x: auto;
+  scrollbar-width: none;
 }
+
+.message-reactions::-webkit-scrollbar { display: none; }
+.message-row.has-reactions { padding-bottom: 21px; }
+.message-row.own .message-reactions { right: 9px; left: auto; justify-content: flex-end; }
 
 .message-reactions button {
   display: inline-flex;
