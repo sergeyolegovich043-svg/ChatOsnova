@@ -142,6 +142,7 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, a:focus-visib
 .search-field button { color: #7e778a; }
 .conversation-list { padding: 5px 8px 10px; }
 .conversation-row { margin: 2px 0; padding: 10px; border: 1px solid transparent; border-radius: 16px; color: #eeeaf6; background: transparent; transition: background 170ms ease,border-color 170ms ease,transform 170ms ease; }
+.conversation-row-wrap .conversation-row { padding-right: 46px; }
 .conversation-row:hover { border-color: rgba(255,255,255,.065); background: rgba(255,255,255,.05); transform: translateX(2px); }
 .conversation-row.active { border-color: rgba(174,147,255,.17); background: linear-gradient(100deg,rgba(142,107,255,.2),rgba(255,121,137,.055)); box-shadow: inset 3px 0 0 #9676ff, inset 0 1px 0 rgba(255,255,255,.04); }
 .conversation-title-line strong { color: #f6f3fb; font-weight: 690; }
