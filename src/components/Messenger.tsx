@@ -454,20 +454,23 @@ export function Messenger({ user, setUser, onLogout, canInstall, installApp }: M
     setDetailsOpen(false);
     setReactionPickerFor(null);
     setMessageMenu(null);
+    setChatMenuFor(null);
   }, [activeId]);
 
   useEffect(() => {
-    if (!messageMenu && !reactionPickerFor) return;
+    if (!messageMenu && !reactionPickerFor && !chatMenuFor) return;
     const dismissMenus = (event: PointerEvent) => {
       const target = event.target instanceof Element ? event.target : null;
-      if (target?.closest("[data-message-menu], .message-reaction-picker")) return;
+      if (target?.closest("[data-message-menu], [data-chat-menu], .message-reaction-picker")) return;
       setMessageMenu(null);
       setReactionPickerFor(null);
+      setChatMenuFor(null);
     };
     const closeOnEscape = (event: globalThis.KeyboardEvent) => {
       if (event.key !== "Escape") return;
       setMessageMenu(null);
       setReactionPickerFor(null);
+      setChatMenuFor(null);
     };
     document.addEventListener("pointerdown", dismissMenus);
     document.addEventListener("keydown", closeOnEscape);
@@ -475,7 +478,7 @@ export function Messenger({ user, setUser, onLogout, canInstall, installApp }: M
       document.removeEventListener("pointerdown", dismissMenus);
       document.removeEventListener("keydown", closeOnEscape);
     };
-  }, [messageMenu, reactionPickerFor]);
+  }, [chatMenuFor, messageMenu, reactionPickerFor]);
 
   function openMessageMenu(messageId: string, own: boolean, x: number, y: number) {
     const width = 206;
@@ -809,11 +812,11 @@ export function Messenger({ user, setUser, onLogout, canInstall, installApp }: M
                     </span>
                   </span>
                 </button>
-                <button className="conversation-actions-trigger" type="button" onClick={() => setChatMenuFor((current) => current === conversation.id ? null : conversation.id)} aria-label={`Действия с чатом ${conversation.title}`}>
+                <button className="conversation-actions-trigger" data-chat-menu type="button" onClick={() => setChatMenuFor((current) => current === conversation.id ? null : conversation.id)} aria-label={`Действия с чатом ${conversation.title}`}>
                   <MoreHorizontal size={17} weight="bold" />
                 </button>
                 {chatMenuFor === conversation.id && (
-                  <div className="conversation-actions-menu">
+                  <div className="conversation-actions-menu" data-chat-menu>
                     <button type="button" onClick={() => void togglePinned(conversation)}>
                       {conversation.pinned ? <PushPinSlash size={16} /> : <PushPin size={16} />}
                       {conversation.pinned ? "Открепить" : "Закрепить"}
