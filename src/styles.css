@@ -1038,6 +1038,17 @@ a:focus-visible {
   justify-content: flex-end;
 }
 
+.message-stack {
+  display: flex;
+  width: fit-content;
+  min-width: 0;
+  max-width: min(72%, 680px);
+  flex-direction: column;
+  align-items: flex-start;
+}
+
+.message-row.own .message-stack { align-items: flex-end; }
+
 .avatar-spacer {
   width: 36px;
   flex: 0 0 36px;
@@ -1045,7 +1056,7 @@ a:focus-visible {
 
 .message-bubble {
   position: relative;
-  max-width: min(72%, 680px);
+  max-width: 100%;
   min-width: 80px;
   padding: 8px 11px 6px;
   border-radius: 6px 17px 17px 17px;
@@ -2216,7 +2227,7 @@ a:focus-visible {
   .chat-header { padding-inline: 7px 11px; }
   .message-area { padding: 13px 9px; }
   .messages-list { width: 100%; }
-  .message-bubble { max-width: 82%; }
+  .message-stack { max-width: 82%; }
   .composer-wrap { padding: 7px 7px max(7px, env(safe-area-inset-bottom)); }
   .composer-hint { display: none; }
   .composer { border-radius: 16px; }
@@ -2240,7 +2251,7 @@ a:focus-visible {
   .message-row { gap: 5px; }
   .message-row > .avatar-sm,
   .avatar-spacer { display: none; }
-  .message-bubble { max-width: 89%; }
+  .message-stack { max-width: 89%; }
   .file-attachment { min-width: 210px; }
   .details-facts { grid-template-columns: 1fr; }
   .chat-details-hero { padding-inline: 18px; }

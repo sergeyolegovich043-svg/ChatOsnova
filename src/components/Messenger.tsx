@@ -926,23 +926,24 @@ export function Messenger({ user, setUser, onLogout, canInstall, installApp, the
                       <article className={`message-row ${own ? "own" : ""} ${grouped ? "grouped" : ""} ${hasReactions ? "has-reactions" : ""}`}>
                         {!own && !grouped && <Avatar user={message.sender} size="sm" />}
                         {!own && grouped && <span className="avatar-spacer" />}
-                        <div
-                          className={`message-bubble ${message.deletedAt ? "deleted" : ""}`}
-                          tabIndex={0}
-                          aria-haspopup={message.deletedAt ? undefined : "menu"}
-                          aria-expanded={messageMenu?.messageId === message.id}
-                          onContextMenu={(event) => {
-                            if (message.deletedAt) return;
-                            event.preventDefault();
-                            openMessageMenu(message.id, own, event.clientX, event.clientY);
-                          }}
-                          onKeyDown={(event) => {
-                            if (message.deletedAt || (event.key !== "ContextMenu" && !(event.shiftKey && event.key === "F10"))) return;
-                            event.preventDefault();
-                            const rect = event.currentTarget.getBoundingClientRect();
-                            openMessageMenu(message.id, own, own ? rect.right : rect.left, rect.bottom);
-                          }}
-                        >
+                        <div className="message-stack">
+                          <div
+                            className={`message-bubble ${message.deletedAt ? "deleted" : ""}`}
+                            tabIndex={0}
+                            aria-haspopup={message.deletedAt ? undefined : "menu"}
+                            aria-expanded={messageMenu?.messageId === message.id}
+                            onContextMenu={(event) => {
+                              if (message.deletedAt) return;
+                              event.preventDefault();
+                              openMessageMenu(message.id, own, event.clientX, event.clientY);
+                            }}
+                            onKeyDown={(event) => {
+                              if (message.deletedAt || (event.key !== "ContextMenu" && !(event.shiftKey && event.key === "F10"))) return;
+                              event.preventDefault();
+                              const rect = event.currentTarget.getBoundingClientRect();
+                              openMessageMenu(message.id, own, own ? rect.right : rect.left, rect.bottom);
+                            }}
+                          >
                           {!own && activeConversation.kind === "group" && !grouped && <strong className="message-sender" style={{ color: message.sender.avatarColor }}>{message.sender.displayName}</strong>}
                           {message.reply && (
                             <button className="reply-quote" onClick={() => document.getElementById(`message-${message.reply?.id}`)?.scrollIntoView({ behavior: "smooth", block: "center" })}>
@@ -966,21 +967,6 @@ export function Messenger({ user, setUser, onLogout, canInstall, installApp, the
                             <time>{timeFormatter.format(new Date(message.createdAt))}</time>
                             {own && <CheckCheck size={15} />}
                           </span>
-                          {hasReactions && (
-                            <div className="message-reactions" aria-label="Реакции на сообщение">
-                              {(message.reactions ?? []).map((reaction) => (
-                                <button
-                                  type="button"
-                                  key={reaction.emoji}
-                                  className={reaction.userIds.includes(user.id) ? "active" : ""}
-                                  onClick={() => void toggleReaction(message, reaction.emoji)}
-                                  aria-label={`${reaction.emoji}, реакций: ${reaction.count}`}
-                                >
-                                  <span>{reaction.emoji}</span><b>{reaction.count}</b>
-                                </button>
-                              ))}
-                            </div>
-                          )}
                           {reactionPickerFor === message.id && (
                             <div className={`message-reaction-picker ${own ? "align-right" : ""}`}>
                               <EmojiPicker compact title="Быстрые реакции" onSelect={(emoji) => void toggleReaction(message, emoji)} />
@@ -1001,6 +987,22 @@ export function Messenger({ user, setUser, onLogout, canInstall, installApp, the
                               {own && <button className="danger" type="button" role="menuitem" onClick={() => { setMessageMenu(null); void deleteMessage(message); }}><Trash2 size={19} weight="regular" /><span>Удалить</span></button>}
                             </div>,
                             document.body
+                          )}
+                          </div>
+                          {hasReactions && (
+                            <div className="message-reactions" aria-label="Реакции на сообщение">
+                              {(message.reactions ?? []).map((reaction) => (
+                                <button
+                                  type="button"
+                                  key={reaction.emoji}
+                                  className={reaction.userIds.includes(user.id) ? "active" : ""}
+                                  onClick={() => void toggleReaction(message, reaction.emoji)}
+                                  aria-label={`${reaction.emoji}, реакций: ${reaction.count}`}
+                                >
+                                  <span>{reaction.emoji}</span><b>{reaction.count}</b>
+                                </button>
+                              ))}
+                            </div>
                           )}
                         </div>
                       </article>

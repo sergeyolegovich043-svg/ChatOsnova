@@ -326,7 +326,7 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, a:focus-visib
   .brand-logo-xl { width: 88px; height: 88px; }
   .welcome-pane { padding-inline: 24px; }
   .welcome-pane h1 { font-size: 36px; }
-  .message-bubble { max-width: min(88vw,410px); }
+  .message-stack { max-width: min(88vw,410px); }
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -336,31 +336,29 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, a:focus-visib
 /* Reactions, media messages and premium composer */
 
 .message-reactions {
-  position: absolute;
-  z-index: 3;
-  top: calc(100% - 5px);
-  left: 9px;
   display: flex;
-  max-width: min(320px,calc(100vw - 76px));
+  max-width: 100%;
   flex-wrap: nowrap;
-  gap: 4px;
-  margin: 0;
+  align-self: flex-start;
+  gap: 3px;
+  margin: 4px 7px 0;
   overflow-x: auto;
   scrollbar-width: none;
 }
 
 .message-reactions::-webkit-scrollbar { display: none; }
-.message-row.has-reactions { padding-bottom: 21px; }
-.message-row.own .message-reactions { right: 9px; left: auto; justify-content: flex-end; }
+.message-row.has-reactions > .avatar-sm,
+.message-row.has-reactions > .avatar-spacer { margin-bottom: 28px; }
+.message-row.own .message-reactions { align-self: flex-end; justify-content: flex-end; }
 
 .message-reactions button {
   display: inline-flex;
-  min-width: 42px;
-  height: 27px;
+  min-width: 36px;
+  height: 24px;
   align-items: center;
   justify-content: center;
-  gap: 4px;
-  padding: 0 8px;
+  gap: 3px;
+  padding: 0 6px;
   border: 1px solid rgba(255,255,255,.1);
   border-radius: 999px;
   color: #b4adbf;
@@ -371,8 +369,8 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, a:focus-visib
 
 .message-reactions button:hover { border-color: rgba(178,151,255,.32); background: rgba(139,108,255,.16); transform: translateY(-1px); }
 .message-reactions button.active { border-color: rgba(185,158,255,.42); color: #fff; background: rgba(139,108,255,.28); box-shadow: 0 5px 16px rgba(86,53,182,.18), inset 0 1px 0 rgba(255,255,255,.1); }
-.message-reactions button span { font-size: 14px; line-height: 1; }
-.message-reactions button b { font-size: 10px; font-weight: 720; }
+.message-reactions button span { font-size: 13px; line-height: 1; }
+.message-reactions button b { font-size: 9px; font-weight: 740; }
 .message-row.own .message-reactions button { border-color: rgba(255,255,255,.16); color: rgba(255,255,255,.8); background: rgba(17,8,36,.16); }
 .message-row.own .message-reactions button.active { color: #fff; background: rgba(255,255,255,.2); }
 
