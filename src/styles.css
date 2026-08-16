@@ -198,9 +198,13 @@ a:focus-visible {
 
 .auth-shell {
   display: grid;
+  height: 100%;
   min-height: 100%;
   grid-template-columns: minmax(390px, 1.02fr) minmax(440px, 0.98fr);
-  overflow: auto;
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior-y: contain;
+  -webkit-overflow-scrolling: touch;
   background: #f6f8f9;
 }
 
