@@ -48,7 +48,26 @@
   will-change: background-position, filter;
 }
 
-.pet-sprite-button:hover .pet-idle-sprite { filter: brightness(1.08) saturate(1.06); }
+.pet-search-sprite {
+  position: absolute;
+  inset: 0;
+  display: none;
+  background-image: var(--pet-search);
+  background-repeat: no-repeat;
+  background-position: var(--pet-search-frame) center;
+  background-size: 500% 100%;
+  image-rendering: pixelated;
+  image-rendering: crisp-edges;
+  will-change: background-position, filter;
+}
+
+.pet-searching .pet-idle-sprite,
+.pet-found .pet-idle-sprite { display: none; }
+.pet-searching .pet-search-sprite,
+.pet-found .pet-search-sprite { display: block; }
+
+.pet-sprite-button:hover .pet-idle-sprite,
+.pet-sprite-button:hover .pet-search-sprite { filter: brightness(1.08) saturate(1.06); }
 
 .pet-ground-shadow {
   position: absolute;
@@ -78,6 +97,59 @@
   backdrop-filter: blur(20px) saturate(1.25);
   pointer-events: auto;
   animation: pet-bubble-in 180ms steps(3, end);
+}
+
+.pet-activity {
+  position: absolute;
+  z-index: 3;
+  bottom: 156px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: max-content;
+  max-width: min(230px, calc(100vw - 28px));
+  min-height: 28px;
+  padding: 6px 9px;
+  border: 1px solid rgba(124, 192, 255, .28);
+  border-radius: 12px;
+  color: #e8e2f8;
+  background: linear-gradient(135deg, rgba(31, 24, 50, .94), rgba(12, 17, 35, .96));
+  box-shadow: 0 12px 30px rgba(5, 3, 13, .34), inset 0 1px 0 rgba(255,255,255,.08);
+  backdrop-filter: blur(18px) saturate(1.25);
+  font-size: 10px;
+  font-weight: 730;
+  line-height: 1.2;
+  white-space: nowrap;
+  pointer-events: none;
+  animation: pet-bubble-in 180ms steps(3, end);
+}
+
+.pet-activity.align-left { left: 34px; }
+.pet-activity.align-right { right: 34px; }
+.pet-activity strong {
+  display: grid;
+  place-items: center;
+  width: 20px;
+  height: 18px;
+  border: 1px solid rgba(159, 129, 255, .34);
+  border-radius: 6px;
+  color: #d9c9ff;
+  background: rgba(125, 79, 232, .18);
+  font-size: 8px;
+  letter-spacing: .06em;
+}
+.pet-activity-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #6fd8ff;
+  box-shadow: 0 0 0 3px rgba(95, 196, 255, .12), 0 0 12px rgba(99, 211, 255, .75);
+  animation: pet-activity-scan 840ms steps(3, end) infinite;
+}
+.pet-found .pet-activity-dot {
+  background: #ffd76a;
+  box-shadow: 0 0 0 3px rgba(255, 201, 75, .12), 0 0 12px rgba(255, 209, 94, .75);
+  animation: none;
 }
 
 .pet-speech {
@@ -143,7 +215,8 @@
 .pet-setting .setting-icon { color: #b48eff; background: linear-gradient(145deg, rgba(155, 101, 255, .16), rgba(68, 163, 255, .1)); }
 
 [data-theme="light"] .pet-speech,
-[data-theme="light"] .pet-menu {
+[data-theme="light"] .pet-menu,
+[data-theme="light"] .pet-activity {
   border-color: rgba(106, 70, 190, .18);
   color: #2c213c;
   background: rgba(255, 253, 255, .94);
@@ -155,6 +228,12 @@
 [data-theme="light"] .pet-menu button:hover { color: #271a3a; background: rgba(91, 57, 153, .07); }
 [data-theme="light"] .pet-notification p { color: #665b72; }
 [data-theme="light"] .pet-notification small { color: #83778f; }
+[data-theme="light"] .pet-activity { color: #46375b; }
+[data-theme="light"] .pet-activity strong { color: #6544aa; background: rgba(122, 84, 205, .1); }
+
+@keyframes pet-activity-scan {
+  50% { opacity: .45; transform: scale(.72); }
+}
 
 @keyframes pet-bubble-in {
   from { opacity: 0; transform: translateY(8px) scale(.94); }
@@ -169,15 +248,20 @@
   .pet-sprite-button { width: 139.5px; height: 124px; }
   .pet-ground-shadow { right: 34px; width: 72px; }
   .pet-speech,
-  .pet-menu { bottom: 134px; }
+  .pet-menu,
+  .pet-activity { bottom: 134px; }
   .pet-speech.align-left,
   .pet-menu.align-left { left: 24px; }
   .pet-speech.align-right,
   .pet-menu.align-right { right: 24px; }
+  .pet-activity.align-left { left: 18px; }
+  .pet-activity.align-right { right: 18px; }
 }
 
 @media (prefers-reduced-motion: reduce) {
   .pet-idle-sprite,
-  .pet-ground-shadow { animation: none !important; }
+  .pet-search-sprite,
+  .pet-ground-shadow,
+  .pet-activity-dot { animation: none !important; }
   .pet-companion { transition: none; }
 }

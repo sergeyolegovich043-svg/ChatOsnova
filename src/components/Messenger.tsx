@@ -56,7 +56,9 @@ import {
   notifyNativePet,
   readPetEnabled,
   savePetEnabled,
+  syncNativePetActivity,
   syncNativePet,
+  type PetActivity,
   type PetNotification
 } from "../pet";
 import type { Attachment, ChatFolder, ColorTheme, Conversation, Member, Message, MessageSearchResult, User } from "../types";
@@ -261,6 +263,9 @@ export function Messenger({ user, setUser, onLogout, canInstall, installApp, the
 
   const activeConversation = conversations.find((conversation) => conversation.id === activeId) ?? null;
   const activeMessages = activeId ? messages[activeId] ?? [] : [];
+  const petActivity: PetActivity | null = globalSearchLoading
+    ? { type: "searching", source: "messages", label: "Ищу по перепискам" }
+    : null;
 
   useEffect(() => {
     activeIdRef.current = activeId;
@@ -276,6 +281,14 @@ export function Messenger({ user, setUser, onLogout, canInstall, installApp, the
     void syncNativePet(petEnabled);
     if (!petEnabled) setPetNotification(null);
   }, [petEnabled]);
+
+  useEffect(() => {
+    const nextActivity = petEnabled ? petActivity : null;
+    void syncNativePetActivity(nextActivity);
+    return () => {
+      if (nextActivity) void syncNativePetActivity(null);
+    };
+  }, [globalSearchLoading, petEnabled]);
 
   useEffect(() => () => {
     popupTimersRef.current.forEach((timer) => window.clearTimeout(timer));
@@ -1763,6 +1776,7 @@ export function Messenger({ user, setUser, onLogout, canInstall, installApp, the
       {PetCompanion && featureFlags.petCompanion && petEnabled && !hasNativePetBridge() && (
         <Suspense fallback={null}>
           <PetCompanion
+            activity={petActivity}
             notification={petNotification}
             onOpenConversation={openConversation}
             onDisable={() => setPetEnabled(false)}
