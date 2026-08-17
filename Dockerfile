@@ -1,5 +1,9 @@
 FROM node:22-alpine AS build
 WORKDIR /app
+ARG VITE_APP_ENV=production
+ARG VITE_ENABLE_PET=true
+ENV VITE_APP_ENV=$VITE_APP_ENV
+ENV VITE_ENABLE_PET=$VITE_ENABLE_PET
 COPY package*.json ./
 RUN npm config set fetch-retries 5 \
     && npm config set fetch-retry-mintimeout 20000 \

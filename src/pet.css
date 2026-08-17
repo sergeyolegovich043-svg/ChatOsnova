@@ -146,21 +146,6 @@
 .pet-menu button.danger { color: #ff819d; }
 .pet-menu button.danger:hover { background: rgba(255, 88, 130, .1); }
 
-.dev-chip {
-  display: inline-flex;
-  margin-left: 5px;
-  padding: 2px 5px;
-  border: 1px solid rgba(178, 144, 255, .3);
-  border-radius: 5px;
-  color: #b79bff;
-  background: rgba(130, 86, 236, .1);
-  font-size: 7px;
-  font-style: normal;
-  font-weight: 900;
-  letter-spacing: .08em;
-  vertical-align: 2px;
-}
-
 .pet-setting .setting-icon { color: #b48eff; background: linear-gradient(145deg, rgba(155, 101, 255, .16), rgba(68, 163, 255, .1)); }
 
 [data-theme="light"] .pet-speech,

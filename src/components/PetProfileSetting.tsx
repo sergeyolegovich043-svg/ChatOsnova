@@ -17,7 +17,7 @@ export function PetProfileSetting({ enabled, onChange }: PetProfileSettingProps)
     >
       <span className="setting-icon"><Cat size={20} weight="fill" /></span>
       <span>
-        <strong>Питомец Барсик <em className="dev-chip">DEV</em></strong>
+        <strong>Питомец Барсик</strong>
         <small>{enabled ? "Ходит по экрану и сообщает о новых сообщениях" : "Показать пиксельного кота на этом устройстве"}</small>
       </span>
       <span className="theme-switch" aria-hidden="true"><span /></span>

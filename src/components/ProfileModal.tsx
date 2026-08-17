@@ -12,10 +12,11 @@ import {
   X
 } from "@phosphor-icons/react";
 import { api } from "../api";
+import { featureFlags } from "../features";
 import type { ColorTheme, User } from "../types";
 import { Avatar } from "./Avatar";
 
-const PetProfileSetting = import.meta.env.DEV
+const PetProfileSetting = featureFlags.petCompanion
   ? lazy(() => import("./PetProfileSetting").then((module) => ({ default: module.PetProfileSetting })))
   : null;
 

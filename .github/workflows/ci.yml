@@ -36,4 +36,8 @@ jobs:
       - run: npm audit --audit-level=high
       - run: npm run typecheck
       - run: npm test
-      - run: npm run build
+      - name: Build the production feature set
+        run: npm run build
+        env:
+          VITE_APP_ENV: production
+          VITE_ENABLE_PET: "true"

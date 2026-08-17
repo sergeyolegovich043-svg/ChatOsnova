@@ -72,7 +72,7 @@ import { ChatDetailsModal } from "./ChatDetailsModal";
 import { ForwardMessageModal } from "./ForwardMessageModal";
 import { FormattedMessage, mentionsUsername } from "./FormattedMessage";
 
-const PetCompanion = import.meta.env.DEV
+const PetCompanion = featureFlags.petCompanion
   ? lazy(() => import("./PetCompanion").then((module) => ({ default: module.PetCompanion })))
   : null;
 
