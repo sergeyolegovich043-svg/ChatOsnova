@@ -3,7 +3,22 @@ import { io } from "socket.io-client";
 
 const baseUrl = process.env.SMOKE_URL ?? "http://127.0.0.1:3000";
 const origin = process.env.SMOKE_ORIGIN ?? "http://localhost:3000";
+const rejectUnauthorized = process.env.SMOKE_INSECURE_TLS !== "1";
 const suffix = Date.now().toString(36);
+
+function sessionCookie(response) {
+  const setCookieHeaders = typeof response.headers.getSetCookie === "function"
+    ? response.headers.getSetCookie()
+    : [response.headers.get("set-cookie") ?? ""];
+  for (const name of ["__Host-barsik_session", "cs_session"]) {
+    const pattern = new RegExp(`(?:^|,\\s*)${name}=([^;,]*)`);
+    for (const header of setCookieHeaders) {
+      const value = header.match(pattern)?.[1];
+      if (value) return `${name}=${value}`;
+    }
+  }
+  return undefined;
+}
 
 async function request(path, { cookie, method = "GET", body, form } = {}) {
   const response = await fetch(`${baseUrl}${path}`, {
@@ -17,11 +32,11 @@ async function request(path, { cookie, method = "GET", body, form } = {}) {
   });
   const payload = response.status === 204 ? null : await response.json().catch(() => null);
   if (!response.ok) throw new Error(`${method} ${path}: ${response.status} ${JSON.stringify(payload)}`);
-  return { payload, cookie: response.headers.get("set-cookie")?.split(";")[0] };
+  return { payload, cookie: sessionCookie(response) };
 }
 
 async function register(label, displayName) {
-  return request("/api/auth/register", {
+  const result = await request("/api/auth/register", {
     method: "POST",
     body: {
       email: `${label}.${suffix}@example.test`,
@@ -30,6 +45,8 @@ async function register(label, displayName) {
       password: "StrongPass!123"
     }
   });
+  if (!result.cookie) throw new Error("Registration did not return a session cookie");
+  return result;
 }
 
 const alice = await register("alice", "Алиса Проверка");
@@ -56,6 +73,7 @@ const groupId = group.payload.conversation.id;
 
 const bobSocket = io(baseUrl, {
   transports: ["websocket"],
+  rejectUnauthorized,
   extraHeaders: { Cookie: bob.cookie, Origin: origin }
 });
 
@@ -77,6 +95,7 @@ await new Promise((resolve, reject) => {
 const wrongOriginSocket = io(baseUrl, {
   transports: ["websocket"],
   reconnection: false,
+  rejectUnauthorized,
   extraHeaders: { Cookie: bob.cookie, Origin: "https://evil.example" }
 });
 await new Promise((resolve, reject) => {
