@@ -7,11 +7,14 @@ import {
 } from "react";
 import { EyeSlash, PawPrint } from "@phosphor-icons/react";
 import {
-  clampPetX,
+  clampPetPosition,
+  dragPetPosition,
   PET_ACTIVITY_EVENT,
+  PET_LEGACY_X_POSITION_KEY,
   PET_POSITION_KEY,
   type PetActivity,
-  type PetNotification
+  type PetNotification,
+  type PetPosition
 } from "../pet";
 import petIdleUrl from "../assets/pet-states/barsik-metallica-idle-v2.png";
 import petSearchUrl from "../assets/pet-states/barsik-metallica-search-v1.png";
@@ -28,6 +31,10 @@ type PetMode = "sit" | "excited";
 type PetSearchStage = "idle" | "searching" | "found";
 
 const PET_WIDTH = 167;
+const PET_HEIGHT = 178;
+const MOBILE_PET_WIDTH = 140;
+const MOBILE_PET_HEIGHT = 150;
+const MOBILE_BREAKPOINT = 720;
 const IDLE_FRAME_POSITIONS = ["0%", "25%", "50%", "75%", "100%"];
 const SEARCH_FRAME_POSITIONS = ["0%", "25%", "50%", "75%", "100%"];
 const SEARCH_SEQUENCE = [0, 1, 2, 3, 2, 1];
@@ -43,19 +50,59 @@ const IDLE_SEQUENCE = [
   { frame: 1, duration: 440 }
 ];
 
-function initialPosition() {
-  const fallback = typeof window === "undefined" ? 24 : window.innerWidth - PET_WIDTH - 28;
-  if (typeof window === "undefined") return fallback;
+function petSize(viewportWidth: number) {
+  return viewportWidth <= MOBILE_BREAKPOINT
+    ? { width: MOBILE_PET_WIDTH, height: MOBILE_PET_HEIGHT }
+    : { width: PET_WIDTH, height: PET_HEIGHT };
+}
+
+function clampToViewport(position: PetPosition) {
+  const size = petSize(window.innerWidth);
+  return clampPetPosition(position, window.innerWidth, window.innerHeight, size.width, size.height);
+}
+
+function initialPosition(): PetPosition {
+  if (typeof window === "undefined") return { x: 24, y: 24 };
+  const size = petSize(window.innerWidth);
+  const bottomOffset = window.innerWidth <= MOBILE_BREAKPOINT ? 70 : 8;
+  const fallback = clampPetPosition(
+    {
+      x: window.innerWidth - size.width - 28,
+      y: window.innerHeight - size.height - bottomOffset
+    },
+    window.innerWidth,
+    window.innerHeight,
+    size.width,
+    size.height
+  );
+
   try {
-    const saved = Number(window.localStorage.getItem(PET_POSITION_KEY));
-    return clampPetX(Number.isFinite(saved) && saved > 0 ? saved : fallback, window.innerWidth, PET_WIDTH);
+    const stored = window.localStorage.getItem(PET_POSITION_KEY);
+    if (stored) {
+      const parsed = JSON.parse(stored) as Partial<PetPosition>;
+      if (Number.isFinite(parsed.x) && Number.isFinite(parsed.y)) {
+        return clampToViewport({ x: Number(parsed.x), y: Number(parsed.y) });
+      }
+    }
   } catch {
-    return clampPetX(fallback, window.innerWidth, PET_WIDTH);
+    // Fall through to the legacy horizontal position or the default position.
   }
+
+  try {
+    const storedLegacyX = window.localStorage.getItem(PET_LEGACY_X_POSITION_KEY);
+    if (storedLegacyX !== null) {
+      const legacyX = Number(storedLegacyX);
+      if (Number.isFinite(legacyX)) return clampToViewport({ x: legacyX, y: fallback.y });
+    }
+  } catch {
+    // The default position is still safe when storage is blocked.
+  }
+
+  return fallback;
 }
 
 export function PetCompanion({ activity, notification, onOpenConversation, onDisable }: PetCompanionProps) {
-  const [x, setX] = useState(initialPosition);
+  const [position, setPosition] = useState(initialPosition);
   const [idleFrame, setIdleFrame] = useState(0);
   const [searchFrame, setSearchFrame] = useState(0);
   const [searchStage, setSearchStage] = useState<PetSearchStage>("idle");
@@ -67,9 +114,9 @@ export function PetCompanion({ activity, notification, onOpenConversation, onDis
   const [greetingVisible, setGreetingVisible] = useState(true);
   const [menuOpen, setMenuOpen] = useState(false);
   const [dragging, setDragging] = useState(false);
-  const xRef = useRef(x);
+  const positionRef = useRef(position);
   const searchStartedAtRef = useRef(0);
-  const dragRef = useRef({ startPointerX: 0, startPetX: 0, moved: false });
+  const dragRef = useRef({ startPointerX: 0, startPointerY: 0, startPetX: 0, startPetY: 0, moved: false });
   const currentActivity = activity ?? externalActivity;
   const visualMode = mode === "excited"
     ? "excited"
@@ -167,12 +214,16 @@ export function PetCompanion({ activity, notification, onOpenConversation, onDis
 
   useEffect(() => {
     const resize = () => {
-      const next = clampPetX(xRef.current, window.innerWidth, PET_WIDTH);
-      xRef.current = next;
-      setX(next);
+      const next = clampToViewport(positionRef.current);
+      positionRef.current = next;
+      setPosition(next);
     };
     window.addEventListener("resize", resize);
-    return () => window.removeEventListener("resize", resize);
+    window.visualViewport?.addEventListener("resize", resize);
+    return () => {
+      window.removeEventListener("resize", resize);
+      window.visualViewport?.removeEventListener("resize", resize);
+    };
   }, []);
 
   useEffect(() => {
@@ -189,8 +240,19 @@ export function PetCompanion({ activity, notification, onOpenConversation, onDis
 
   function startDrag(event: ReactPointerEvent<HTMLButtonElement>) {
     if (event.button !== 0) return;
-    event.currentTarget.setPointerCapture(event.pointerId);
-    dragRef.current = { startPointerX: event.clientX, startPetX: xRef.current, moved: false };
+    event.preventDefault();
+    try {
+      event.currentTarget.setPointerCapture(event.pointerId);
+    } catch {
+      // Some embedded browser shells can report pointer capture as unavailable.
+    }
+    dragRef.current = {
+      startPointerX: event.clientX,
+      startPointerY: event.clientY,
+      startPetX: positionRef.current.x,
+      startPetY: positionRef.current.y,
+      moved: false
+    };
     setDragging(true);
     setMode("sit");
     setIdleFrame(0);
@@ -198,20 +260,38 @@ export function PetCompanion({ activity, notification, onOpenConversation, onDis
 
   function movePet(event: ReactPointerEvent<HTMLButtonElement>) {
     if (!dragging) return;
-    const distance = event.clientX - dragRef.current.startPointerX;
-    if (Math.abs(distance) > 4) dragRef.current.moved = true;
-    const next = clampPetX(dragRef.current.startPetX + distance, window.innerWidth, PET_WIDTH);
-    xRef.current = next;
-    setX(next);
+    const distanceX = event.clientX - dragRef.current.startPointerX;
+    const distanceY = event.clientY - dragRef.current.startPointerY;
+    if (Math.hypot(distanceX, distanceY) > 4) dragRef.current.moved = true;
+    const size = petSize(window.innerWidth);
+    const next = dragPetPosition(
+      { x: dragRef.current.startPetX, y: dragRef.current.startPetY },
+      { x: dragRef.current.startPointerX, y: dragRef.current.startPointerY },
+      { x: event.clientX, y: event.clientY },
+      window.innerWidth,
+      window.innerHeight,
+      size.width,
+      size.height
+    );
+    positionRef.current = next;
+    setPosition(next);
   }
 
   function finishDrag(event: ReactPointerEvent<HTMLButtonElement>) {
     if (!dragging) return;
-    if (event.currentTarget.hasPointerCapture(event.pointerId)) event.currentTarget.releasePointerCapture(event.pointerId);
+    try {
+      if (event.currentTarget.hasPointerCapture(event.pointerId)) event.currentTarget.releasePointerCapture(event.pointerId);
+    } catch {
+      // The drag state still resets if an embedded browser loses pointer capture.
+    }
     setDragging(false);
     setMode("sit");
     try {
-      window.localStorage.setItem(PET_POSITION_KEY, String(Math.round(xRef.current)));
+      window.localStorage.setItem(PET_POSITION_KEY, JSON.stringify({
+        x: Math.round(positionRef.current.x),
+        y: Math.round(positionRef.current.y)
+      }));
+      window.localStorage.removeItem(PET_LEGACY_X_POSITION_KEY);
     } catch {
       // The position remains valid until this tab is closed.
     }
@@ -237,12 +317,13 @@ export function PetCompanion({ activity, notification, onOpenConversation, onDis
     "--pet-search": `url("${petSearchUrl}")`,
     "--pet-search-frame": SEARCH_FRAME_POSITIONS[searchFrame]
   } as CSSProperties;
-  const alignRight = x > (typeof window === "undefined" ? 640 : window.innerWidth / 2);
+  const alignRight = position.x > (typeof window === "undefined" ? 640 : window.innerWidth / 2);
+  const placeBubbleBelow = position.y < 96;
 
   return (
     <aside
-      className={`pet-companion pet-${visualMode} ${dragging ? "is-dragging" : ""}`}
-      style={{ left: x }}
+      className={`pet-companion pet-${visualMode} ${dragging ? "is-dragging" : ""} ${placeBubbleBelow ? "pet-bubble-below" : ""}`}
+      style={{ left: position.x, top: position.y }}
       data-mode={visualMode}
       aria-label={visualMode === "searching" ? `Барсик: ${searchLabel}` : visualMode === "found" ? "Барсик нашёл результат" : "Питомец Барсик"}
     >
@@ -284,7 +365,7 @@ export function PetCompanion({ activity, notification, onOpenConversation, onDis
         className="pet-sprite-button"
         type="button"
         aria-label="Перетащить или погладить Барсика"
-        title="Барсика можно перетащить"
+        title="Барсика можно перетащить в любое место"
         style={spriteStyle}
         onPointerDown={startDrag}
         onPointerMove={movePet}

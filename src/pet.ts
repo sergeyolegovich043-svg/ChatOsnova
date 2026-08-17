@@ -1,6 +1,12 @@
 export const PET_ENABLED_KEY = "barsikchat.pet.enabled";
-export const PET_POSITION_KEY = "barsikchat.pet.position-x";
+export const PET_POSITION_KEY = "barsikchat.pet.position";
+export const PET_LEGACY_X_POSITION_KEY = "barsikchat.pet.position-x";
 export const PET_ACTIVITY_EVENT = "barsikchat:pet-activity";
+
+export type PetPosition = {
+  x: number;
+  y: number;
+};
 
 export type PetActivity = {
   type: "searching";
@@ -49,6 +55,45 @@ export function savePetEnabled(enabled: boolean, storage: Pick<Storage, "setItem
 export function clampPetX(value: number, viewportWidth: number, petWidth = 148) {
   const max = Math.max(12, viewportWidth - petWidth - 12);
   return Math.min(Math.max(12, value), max);
+}
+
+export function clampPetY(value: number, viewportHeight: number, petHeight = 160) {
+  const max = Math.max(12, viewportHeight - petHeight - 12);
+  return Math.min(Math.max(12, value), max);
+}
+
+export function clampPetPosition(
+  position: PetPosition,
+  viewportWidth: number,
+  viewportHeight: number,
+  petWidth = 148,
+  petHeight = 160
+): PetPosition {
+  return {
+    x: clampPetX(position.x, viewportWidth, petWidth),
+    y: clampPetY(position.y, viewportHeight, petHeight)
+  };
+}
+
+export function dragPetPosition(
+  startPosition: PetPosition,
+  startPointer: PetPosition,
+  currentPointer: PetPosition,
+  viewportWidth: number,
+  viewportHeight: number,
+  petWidth = 148,
+  petHeight = 160
+): PetPosition {
+  return clampPetPosition(
+    {
+      x: startPosition.x + currentPointer.x - startPointer.x,
+      y: startPosition.y + currentPointer.y - startPointer.y
+    },
+    viewportWidth,
+    viewportHeight,
+    petWidth,
+    petHeight
+  );
 }
 
 export function hasNativePetBridge() {
