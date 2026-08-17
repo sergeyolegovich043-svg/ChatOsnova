@@ -44,7 +44,7 @@ BarsikChat защищает аккаунты, сообщения и файлы �
 
 ## Блокеры перед следующим production-релизом
 
-1. Привязать домен к VPS и открыть TCP 80/443 и UDP 443. Новый production-шаблон требует `BARSIKCHAT_DOMAIN` и автоматически получает TLS через Caddy.
+1. Настроить публичный DNS либо использовать IPv4 VPS и открыть TCP 80/443 и UDP 443. Новый production-шаблон требует `BARSIKCHAT_DOMAIN` и получает TLS через Caddy; для IP используется короткоживущий ACME-профиль.
 2. Перевести существующий `/opt/barsikchat/shared/.env` на `APP_ORIGIN=https://<домен>` установщиком; до этого новый образ намеренно не запустится.
 3. В GitHub создать Environment `production`, включить required reviewers и ограничить deployment веткой управления релизами.
 4. Сменить оба ранее переданных в чат root-пароля, удалить password login после проверки SSH-ключа и отозвать ранее показанные runner/registration tokens.

@@ -1,4 +1,11 @@
 {$BARSIKCHAT_DOMAIN} {
+    tls {
+        issuer acme {
+            profile shortlived
+            disable_tlsalpn_challenge
+        }
+    }
+
     encode zstd gzip
 
     request_body {

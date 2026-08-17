@@ -21,7 +21,7 @@ if [[ -s "$env_file" ]]; then
 fi
 barsikchat_domain=${BARSIKCHAT_DOMAIN:-$existing_domain}
 if [[ ! "$barsikchat_domain" =~ ^[A-Za-z0-9]([A-Za-z0-9.-]*[A-Za-z0-9])?$ ]] || [[ "$barsikchat_domain" != *.* ]]; then
-  fail 'Set BARSIKCHAT_DOMAIN to a DNS name that points to this server (for example chat.example.com).'
+  fail 'Set BARSIKCHAT_DOMAIN to a public DNS name or IPv4 address served by this host.'
 fi
 app_origin="https://$barsikchat_domain"
 
