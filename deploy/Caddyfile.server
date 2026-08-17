@@ -1,0 +1,20 @@
+{$BARSIKCHAT_DOMAIN} {
+    encode zstd gzip
+
+    request_body {
+        max_size 55MB
+    }
+
+    header {
+        -Server
+        Strict-Transport-Security "max-age=31536000; includeSubDomains"
+        X-Content-Type-Options "nosniff"
+        X-Frame-Options "DENY"
+        Referrer-Policy "strict-origin-when-cross-origin"
+        Permissions-Policy "camera=(self), microphone=(self), notifications=(self)"
+        Cross-Origin-Opener-Policy "same-origin"
+        Cross-Origin-Resource-Policy "same-origin"
+    }
+
+    reverse_proxy app:3000
+}

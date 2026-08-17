@@ -40,6 +40,13 @@ export type MessageReaction = {
   userIds: string[];
 };
 
+export type MessageReadReceipt = {
+  userId: string;
+  readAt: string;
+};
+
+export type MessageDeliveryState = "sending" | "error" | "scheduled" | "delivered" | "read";
+
 export type Message = {
   id: string;
   conversationId: string;
@@ -48,6 +55,15 @@ export type Message = {
   replyToId?: string | null;
   editedAt?: string | null;
   deletedAt?: string | null;
+  silent: boolean;
+  scheduledAt: string | null;
+  publishedAt: string | null;
+  expireSeconds: number | null;
+  expiresAt: string | null;
+  viewOnce: boolean;
+  viewedBy: string[];
+  pinnedAt: string | null;
+  pinnedBy: string | null;
   createdAt: string;
   sender: Member;
   reply?: {
@@ -55,6 +71,7 @@ export type Message = {
     body: string;
     deletedAt?: string | null;
     senderName: string;
+    senderId: string;
   } | null;
   forwarded?: {
     messageId: string;
@@ -62,7 +79,11 @@ export type Message = {
   } | null;
   attachments: Attachment[];
   reactions: MessageReaction[];
+  readBy: MessageReadReceipt[];
+  deliveryState?: MessageDeliveryState;
 };
+
+export type NotificationMode = "all" | "mentions" | "muted";
 
 export type Conversation = {
   id: string;
@@ -74,6 +95,11 @@ export type Conversation = {
   createdAt: string;
   updatedAt: string;
   muted: boolean;
+  manualUnread: boolean;
+  archived: boolean;
+  isSaved: boolean;
+  notificationMode: NotificationMode;
+  muteUntil: string | null;
   pinned: boolean;
   unreadCount: number;
   members: Member[];
@@ -89,4 +115,27 @@ export type Conversation = {
   };
 };
 
+export type ChatFolder = {
+  id: string;
+  title: string;
+  conversationIds: string[];
+};
+
 export type DirectoryUser = Member;
+
+export type MessageSearchMediaType = "all" | "text" | "files" | "image" | "video" | "audio" | "voice" | "video_circle";
+
+export type MessageSearchFilters = {
+  q?: string;
+  conversationId?: string;
+  senderId?: string;
+  dateFrom?: string;
+  dateTo?: string;
+  type?: MessageSearchMediaType;
+  limit?: number;
+};
+
+export type MessageSearchResult = {
+  message: Message;
+  conversation: Conversation;
+};

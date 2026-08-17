@@ -2,11 +2,11 @@ import { describe, expect, it } from "vitest";
 import { isAllowedOrigin, isSafePushEndpoint, normalizedOrigin } from "../server/security.js";
 
 describe("request origin validation", () => {
-  it("accepts only the configured or actual application origin", () => {
-    expect(isAllowedOrigin("https://chat.example.com", "http://127.0.0.1:3000", "https://chat.example.com")).toBe(true);
-    expect(isAllowedOrigin("http://127.0.0.1:3000", "http://127.0.0.1:3000", "https://chat.example.com")).toBe(true);
-    expect(isAllowedOrigin("https://evil.example", "http://127.0.0.1:3000", "https://chat.example.com")).toBe(false);
-    expect(isAllowedOrigin(undefined, "http://127.0.0.1:3000", "https://chat.example.com")).toBe(false);
+  it("accepts only the explicitly configured application origin", () => {
+    expect(isAllowedOrigin("https://chat.example.com", "https://chat.example.com")).toBe(true);
+    expect(isAllowedOrigin("http://127.0.0.1:3000", "https://chat.example.com")).toBe(false);
+    expect(isAllowedOrigin("https://evil.example", "https://chat.example.com")).toBe(false);
+    expect(isAllowedOrigin(undefined, "https://chat.example.com")).toBe(false);
     expect(normalizedOrigin("https://chat.example.com/path")).toBe("https://chat.example.com");
   });
 });

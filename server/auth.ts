@@ -6,7 +6,8 @@ import { query } from "./db.js";
 import { config } from "./config.js";
 
 const scryptAsync = promisify(scrypt);
-export const SESSION_COOKIE = "cs_session";
+const LEGACY_SESSION_COOKIE = "cs_session";
+export const SESSION_COOKIE = config.isProduction ? "__Host-barsik_session" : LEGACY_SESSION_COOKIE;
 
 export type AuthUser = {
   id: string;
@@ -82,11 +83,15 @@ export async function createSession(
      VALUES ($1, $2, $3, $4, $5)`,
     [hash, userId, request.get("user-agent")?.slice(0, 300), request.ip, expiresAt]
   );
+  if (config.isProduction) {
+    response.clearCookie(LEGACY_SESSION_COOKIE, { path: "/", secure: true });
+  }
   response.cookie(SESSION_COOKIE, token, {
     httpOnly: true,
-    sameSite: "lax",
+    sameSite: "strict",
     secure: config.secureCookies,
     path: "/",
+    priority: "high",
     expires: expiresAt
   });
 }
@@ -94,7 +99,7 @@ export async function createSession(
 export function clearSessionCookie(response: Response) {
   response.clearCookie(SESSION_COOKIE, {
     httpOnly: true,
-    sameSite: "lax",
+    sameSite: "strict",
     secure: config.secureCookies,
     path: "/"
   });

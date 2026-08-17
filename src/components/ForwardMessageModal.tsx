@@ -4,14 +4,14 @@ import type { Conversation, Message, User } from "../types";
 import { Avatar } from "./Avatar";
 
 type ForwardMessageModalProps = {
-  message: Message;
+  messages: Message[];
   conversations: Conversation[];
   currentUser: User;
   onForward: (conversationId: string) => Promise<void>;
   onClose: () => void;
 };
 
-export function ForwardMessageModal({ message, conversations, currentUser, onForward, onClose }: ForwardMessageModalProps) {
+export function ForwardMessageModal({ messages, conversations, currentUser, onForward, onClose }: ForwardMessageModalProps) {
   const [search, setSearch] = useState("");
   const [sendingTo, setSendingTo] = useState<string | null>(null);
   const filtered = useMemo(() => {
@@ -45,7 +45,7 @@ export function ForwardMessageModal({ message, conversations, currentUser, onFor
 
         <div className="forward-preview">
           <PaperPlaneTilt size={18} weight="duotone" />
-          <span><strong>Пересылаем сообщение</strong><small>{message.body || `${message.attachments.length} вложение`}</small></span>
+          <span><strong>{messages.length > 1 ? `Пересылаем сообщений: ${messages.length}` : "Пересылаем сообщение"}</strong><small>{messages[0]?.body || `${messages[0]?.attachments.length ?? 0} вложение`}</small></span>
         </div>
 
         <div className="search-field modal-search">

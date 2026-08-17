@@ -9,10 +9,10 @@ export function normalizedOrigin(value?: string | null) {
   }
 }
 
-export function isAllowedOrigin(origin: string | undefined, requestOrigin: string, appOrigin: string) {
+export function isAllowedOrigin(origin: string | undefined, appOrigin: string) {
   const normalized = normalizedOrigin(origin);
   if (!normalized) return false;
-  return normalized === normalizedOrigin(requestOrigin) || normalized === normalizedOrigin(appOrigin);
+  return normalized === normalizedOrigin(appOrigin);
 }
 
 function isPrivateIpv4(hostname: string) {

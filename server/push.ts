@@ -1,6 +1,7 @@
 import webpush from "web-push";
 import { config } from "./config.js";
 import { query } from "./db.js";
+import { shouldNotifyRecipient } from "./notification-policy.js";
 
 const enabled = Boolean(config.vapidPublicKey && config.vapidPrivateKey);
 
@@ -23,11 +24,18 @@ export async function sendMessagePush(input: {
     endpoint: string;
     p256dh: string;
     auth: string;
+    username: string;
+    notificationMode: "all" | "mentions" | "muted";
+    muteUntil: Date | null;
   }>(
-    `SELECT ps.id, ps.endpoint, ps.p256dh, ps.auth
+    `SELECT ps.id, ps.endpoint, ps.p256dh, ps.auth,
+            u.username,
+            cm.notification_mode AS "notificationMode",
+            cm.mute_until AS "muteUntil"
        FROM push_subscriptions ps
        JOIN conversation_members cm ON cm.user_id = ps.user_id
-      WHERE cm.conversation_id = $1 AND ps.user_id <> $2 AND cm.muted = false`,
+       JOIN users u ON u.id = ps.user_id
+      WHERE cm.conversation_id = $1 AND ps.user_id <> $2`,
     [input.conversationId, input.senderId]
   );
 
@@ -39,7 +47,7 @@ export async function sendMessagePush(input: {
   });
 
   await Promise.all(
-    result.rows.map(async (subscription) => {
+    result.rows.filter((subscription) => shouldNotifyRecipient(subscription, input.body)).map(async (subscription) => {
       try {
         await webpush.sendNotification(
           {

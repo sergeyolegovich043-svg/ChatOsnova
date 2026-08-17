@@ -1,5 +1,4 @@
 import type { Server as HttpServer } from "node:http";
-import type { TLSSocket } from "node:tls";
 import { Server } from "socket.io";
 import { config } from "./config.js";
 import { query } from "./db.js";
@@ -17,10 +16,7 @@ export function createRealtimeServer(server: HttpServer) {
         callback(null, true);
         return;
       }
-      const forwardedProto = String(request.headers["x-forwarded-proto"] ?? "").split(",")[0].trim();
-      const protocol = forwardedProto || ((request.socket as TLSSocket).encrypted ? "https" : "http");
-      const host = request.headers.host ?? "";
-      callback(null, Boolean(host) && isAllowedOrigin(request.headers.origin, `${protocol}://${host}`, config.appOrigin));
+      callback(null, isAllowedOrigin(request.headers.origin, config.appOrigin));
     }
   });
 

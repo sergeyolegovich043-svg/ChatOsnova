@@ -6,6 +6,8 @@
   "description": "Self-hosted installable team messenger",
   "scripts": {
     "dev": "concurrently -n server,web -c cyan,green \"npm:dev:server\" \"npm:dev:web\"",
+    "dev:stack": "docker compose -p barsikchat-dev -f compose.dev.yml up",
+    "dev:stack:down": "docker compose -p barsikchat-dev -f compose.dev.yml down",
     "dev:server": "tsx watch server/index.ts",
     "dev:web": "vite --host 0.0.0.0",
     "build": "npm run build:web && npm run build:server",

@@ -1,0 +1,16 @@
+{
+  "image": "barsik-groom-cycle-5x.png",
+  "frameCount": 5,
+  "sourceFrameWidth": 1254,
+  "frameHeight": 1254,
+  "cellWidth": 1510,
+  "cellHeight": 1254,
+  "gutterLeft": 128,
+  "gutterRight": 128,
+  "transparentGapBetweenFrames": 256,
+  "backgroundSize": "500% 100%",
+  "backgroundPositions": ["0%", "25%", "50%", "75%", "100%"],
+  "phaseNames": ["prepare", "contact", "lick", "wipe", "return"],
+  "suggestedDurationsMs": [260, 260, 360, 320, 260],
+  "loop": true
+}

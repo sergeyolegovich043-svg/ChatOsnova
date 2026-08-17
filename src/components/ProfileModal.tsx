@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type ChangeEvent, type FormEvent } from "react";
+import { lazy, Suspense, useEffect, useRef, useState, type ChangeEvent, type FormEvent } from "react";
 import {
   Bell,
   BellSlash as BellOff,
@@ -15,12 +15,19 @@ import { api } from "../api";
 import type { ColorTheme, User } from "../types";
 import { Avatar } from "./Avatar";
 
+const PetProfileSetting = import.meta.env.DEV
+  ? lazy(() => import("./PetProfileSetting").then((module) => ({ default: module.PetProfileSetting })))
+  : null;
+
 type ProfileModalProps = {
   user: User;
   canInstall: boolean;
   installApp: () => Promise<boolean>;
   theme: ColorTheme;
   onThemeChange: (theme: ColorTheme) => void;
+  petAvailable: boolean;
+  petEnabled: boolean;
+  onPetEnabledChange: (enabled: boolean) => void;
   onUserChange: (user: User) => void;
   onLogout: () => Promise<void>;
   onClose: () => void;
@@ -33,7 +40,19 @@ function urlBase64ToUint8Array(value: string) {
   return Uint8Array.from([...rawData].map((character) => character.charCodeAt(0)));
 }
 
-export function ProfileModal({ user, canInstall, installApp, theme, onThemeChange, onUserChange, onLogout, onClose }: ProfileModalProps) {
+export function ProfileModal({
+  user,
+  canInstall,
+  installApp,
+  theme,
+  onThemeChange,
+  petAvailable,
+  petEnabled,
+  onPetEnabledChange,
+  onUserChange,
+  onLogout,
+  onClose
+}: ProfileModalProps) {
   const [saving, setSaving] = useState(false);
   const [avatarSaving, setAvatarSaving] = useState(false);
   const [error, setError] = useState("");
@@ -180,6 +199,11 @@ export function ProfileModal({ user, canInstall, installApp, theme, onThemeChang
             <span><strong>{theme === "light" ? "Светлая тема" : "Тёмная тема"}</strong><small>{theme === "light" ? "Переключить на тёмное оформление" : "Переключить на светлое оформление"}</small></span>
             <span className="theme-switch" aria-hidden="true"><span /></span>
           </button>
+          {PetProfileSetting && petAvailable && (
+            <Suspense fallback={null}>
+              <PetProfileSetting enabled={petEnabled} onChange={onPetEnabledChange} />
+            </Suspense>
+          )}
           <button className="danger-setting" onClick={onLogout}>
             <span className="setting-icon"><LogOut size={19} /></span>
             <span><strong>Выйти</strong><small>Завершить сеанс на этом устройстве</small></span>

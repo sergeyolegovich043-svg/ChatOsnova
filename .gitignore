@@ -1,7 +1,8 @@
 node_modules/
 dist/
 dist-server/
-.env
+.env*
+!.env.example
 .gradle/
 legacy-android/app/build/
 data/

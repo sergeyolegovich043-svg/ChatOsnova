@@ -6,11 +6,18 @@ import {
   PaperPlaneTilt as Send,
   Smiley as Smile,
   Stop as Square,
+  TextB,
+  TextItalic,
+  Code,
+  Quotes,
+  EyeSlash,
+  SlidersHorizontal,
   Trash as Trash2,
   X
 } from "@phosphor-icons/react";
 import { formatMediaDuration, normalizeRecordedMimeType, pickSupportedMimeType, recordedFileName, type RecordedMediaKind } from "../media";
 import { EmojiPicker } from "./EmojiPicker";
+import type { Member } from "../types";
 
 type MessageComposerProps = {
   chatId: string;
@@ -20,10 +27,13 @@ type MessageComposerProps = {
   sending: boolean;
   hasAttachments: boolean;
   editing: boolean;
+  mentionUsers: Member[];
+  sendOptionsActive: boolean;
   onDraftChange: (value: string) => void;
   onKeyDown: (event: KeyboardEvent<HTMLTextAreaElement>) => void;
   onAttach: () => void;
   onSend: () => void;
+  onOpenSendOptions: () => void;
   onRecorded: (file: File, kind: RecordedMediaKind, durationMs: number) => Promise<void>;
   onError: (message: string) => void;
 };
@@ -47,10 +57,13 @@ export function MessageComposer({
   sending,
   hasAttachments,
   editing,
+  mentionUsers,
+  sendOptionsActive,
   onDraftChange,
   onKeyDown,
   onAttach,
   onSend,
+  onOpenSendOptions,
   onRecorded,
   onError
 }: MessageComposerProps) {
@@ -242,6 +255,46 @@ export function MessageComposer({
     });
   }
 
+  function insertMarkup(prefix: string, suffix = prefix) {
+    const input = inputRef.current;
+    const start = input?.selectionStart ?? draft.length;
+    const end = input?.selectionEnd ?? draft.length;
+    const selected = draft.slice(start, end);
+    const next = `${draft.slice(0, start)}${prefix}${selected}${suffix}${draft.slice(end)}`;
+    onDraftChange(next);
+    window.requestAnimationFrame(() => {
+      input?.focus();
+      const cursor = start + prefix.length + selected.length;
+      input?.setSelectionRange(selected ? cursor + suffix.length : cursor, selected ? cursor + suffix.length : cursor);
+    });
+  }
+
+  function insertQuote() {
+    const input = inputRef.current;
+    const start = input?.selectionStart ?? draft.length;
+    const lineStart = draft.lastIndexOf("\n", Math.max(0, start - 1)) + 1;
+    onDraftChange(`${draft.slice(0, lineStart)}> ${draft.slice(lineStart)}`);
+    window.requestAnimationFrame(() => input?.focus());
+  }
+
+  const mentionMatch = draft.slice(0, inputRef.current?.selectionStart ?? draft.length).match(/(?:^|\s)@([A-Za-z0-9_]*)$/);
+  const mentionSuggestions = mentionMatch
+    ? mentionUsers.filter((member) => member.username.toLowerCase().startsWith(mentionMatch[1].toLowerCase())).slice(0, 5)
+    : [];
+
+  function insertMention(username: string) {
+    const input = inputRef.current;
+    const end = input?.selectionStart ?? draft.length;
+    const start = end - (mentionMatch?.[1].length ?? 0) - 1;
+    const next = `${draft.slice(0, start)}@${username} ${draft.slice(end)}`;
+    onDraftChange(next);
+    window.requestAnimationFrame(() => {
+      const cursor = start + username.length + 2;
+      input?.focus();
+      input?.setSelectionRange(cursor, cursor);
+    });
+  }
+
   if (recording) {
     return (
       <div className={`recording-composer ${recording.kind === "video_circle" ? "video-recording" : "voice-recording"}`}>
@@ -272,6 +325,23 @@ export function MessageComposer({
   const canSend = Boolean(draft.trim() || hasAttachments || editing);
   return (
     <div className="composer-shell">
+      <div className="format-toolbar" aria-label="Форматирование сообщения">
+        <button type="button" onClick={() => insertMarkup("**")} title="Жирный"><TextB size={17} /></button>
+        <button type="button" onClick={() => insertMarkup("__")} title="Курсив"><TextItalic size={17} /></button>
+        <button type="button" onClick={() => insertMarkup("`")} title="Код"><Code size={17} /></button>
+        <button type="button" onClick={insertQuote} title="Цитата"><Quotes size={17} /></button>
+        <button type="button" onClick={() => insertMarkup("||")} title="Спойлер"><EyeSlash size={17} /></button>
+      </div>
+      {mentionSuggestions.length > 0 && (
+        <div className="mention-suggestions">
+          {mentionSuggestions.map((member) => (
+            <button type="button" key={member.id} onClick={() => insertMention(member.username)}>
+              <span style={{ background: member.avatarColor }}>{member.displayName.slice(0, 1)}</span>
+              <strong>{member.displayName}</strong><small>@{member.username}</small>
+            </button>
+          ))}
+        </div>
+      )}
       {emojiOpen && (
         <div className="composer-emoji-popover">
           <button className="emoji-close" type="button" onClick={() => setEmojiOpen(false)} aria-label="Закрыть эмодзи"><X size={16} weight="bold" /></button>
@@ -280,7 +350,7 @@ export function MessageComposer({
       )}
       <div className="composer">
         <div className="composer-tools">
-          <button className="composer-tool" type="button" onClick={onAttach} disabled={uploading || editing} aria-label="Прикрепить файл"><Paperclip size={20} /></button>
+          <button className="composer-tool" type="button" onClick={onAttach} disabled={uploading} aria-label="Прикрепить файл"><Paperclip size={20} /></button>
           <button className={`composer-tool ${emojiOpen ? "active" : ""}`} type="button" onClick={() => setEmojiOpen((open) => !open)} aria-label="Добавить эмодзи" aria-pressed={emojiOpen}><Smile size={20} /></button>
         </div>
         <textarea
@@ -295,9 +365,12 @@ export function MessageComposer({
         />
         <div className="composer-actions">
           {canSend ? (
-            <button className="send-button" type="button" onClick={onSend} disabled={sending || uploading} aria-label="Отправить сообщение">
-              {sending ? <span className="mini-loader light" /> : <Send size={19} />}
-            </button>
+            <div className="send-button-group">
+              <button className={`send-options-button ${sendOptionsActive ? "active" : ""}`} type="button" onClick={onOpenSendOptions} disabled={sending || uploading || editing} aria-label="Параметры отправки"><SlidersHorizontal size={17} /></button>
+              <button className="send-button" type="button" onClick={onSend} disabled={sending || uploading} aria-label={editing ? "Сохранить изменения" : "Отправить сообщение"}>
+                {sending ? <span className="mini-loader light" /> : <Send size={19} />}
+              </button>
+            </div>
           ) : (
             <>
               <button className="media-record-button video" type="button" onClick={() => void startRecording("video_circle")} aria-label="Записать видеокружок"><Camera size={19} /></button>

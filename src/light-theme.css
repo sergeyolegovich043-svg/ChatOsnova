@@ -228,3 +228,38 @@ html[data-theme="light"] .theme-switch > span { transform: translateX(21px); }
 @media (max-width: 980px) {
   html[data-theme="light"] .auth-panel { background: radial-gradient(circle at 20% 10%,rgba(121,87,220,.14),transparent 32%),radial-gradient(circle at 90% 90%,rgba(255,143,104,.1),transparent 28%); }
 }
+
+html[data-theme="light"] .format-toolbar,
+html[data-theme="light"] .message-selection-bar,
+html[data-theme="light"] .send-options-popover,
+html[data-theme="light"] .mention-suggestions,
+html[data-theme="light"] .pinned-message-bar { border-color:rgba(73,50,101,.12); color:#2d2440; background:rgba(255,255,255,.94); box-shadow:0 16px 42px rgba(59,40,78,.12); }
+html[data-theme="light"] .format-toolbar button,
+html[data-theme="light"] .send-options-button { color:#7f7589; }
+html[data-theme="light"] .format-toolbar button:hover,
+html[data-theme="light"] .send-options-button:hover,
+html[data-theme="light"] .send-options-button.active { color:#6744cf; background:rgba(121,87,220,.09); }
+html[data-theme="light"] .mention-suggestions button { color:#332a40; }
+html[data-theme="light"] .mention-suggestions button:hover,
+html[data-theme="light"] .send-options-popover label:hover { background:rgba(121,87,220,.06); }
+html[data-theme="light"] .send-options-popover small,
+html[data-theme="light"] .mention-suggestions small { color:#81798a; }
+html[data-theme="light"] .send-options-popover input[type="datetime-local"],
+html[data-theme="light"] .send-options-popover select { border-color:rgba(73,50,101,.12); color:#3c3248; color-scheme:light; background:#fff; }
+html[data-theme="light"] .message-selection-bar > span button { border-color:rgba(73,50,101,.1); color:#4a4056; background:rgba(121,87,220,.05); }
+html[data-theme="light"] .message-quote { color:#574b63; }
+html[data-theme="light"] .message-text code { border-color:rgba(73,50,101,.12); color:#854e2e; background:rgba(73,50,101,.055); }
+html[data-theme="light"] .view-once-card { color:#6744cf; border-color:rgba(121,87,220,.2); background:rgba(121,87,220,.07); }
+html[data-theme="light"] .view-once-card strong { color:#382c47; }
+html[data-theme="light"] .chat-folder-tabs button { border-color:rgba(73,50,101,.1); color:#766e80; background:rgba(255,255,255,.48); }
+html[data-theme="light"] .chat-folder-tabs button:hover,
+html[data-theme="light"] .chat-folder-tabs button.active { color:#5d3bbb; border-color:rgba(121,87,220,.22); background:rgba(121,87,220,.09); }
+html[data-theme="light"] .global-message-result:hover,
+html[data-theme="light"] .global-message-result:focus-visible { border-color:rgba(100,70,150,.11); background:rgba(121,87,220,.065); }
+html[data-theme="light"] .global-message-result-copy small { color:#6944c8; }
+html[data-theme="light"] .chat-bulk-bar { border-color:rgba(73,50,101,.11); background:rgba(121,87,220,.075); }
+html[data-theme="light"] .chat-bulk-bar button { color:#655c70; }
+html[data-theme="light"] .folder-editor-body > label input,
+html[data-theme="light"] .folder-chat-picker { border-color:rgba(73,50,101,.12); color:#2d2440; background:rgba(255,255,255,.7); }
+html[data-theme="light"] .folder-chat-picker > label:hover { background:rgba(121,87,220,.055); }
+html[data-theme="light"] .folder-editor-actions { border-top-color:rgba(73,50,101,.1); }

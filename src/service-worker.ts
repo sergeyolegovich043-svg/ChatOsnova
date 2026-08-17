@@ -16,13 +16,31 @@ const staticAssets = self.__WB_MANIFEST.filter((entry) => {
 });
 
 precacheAndRoute(staticAssets);
-registerRoute(new NavigationRoute(new NetworkFirst({
-  cacheName: "barsikchat-navigation",
-  networkTimeoutSeconds: 4
-})));
+registerRoute(new NavigationRoute(
+  new NetworkFirst({
+    cacheName: "barsikchat-navigation",
+    networkTimeoutSeconds: 4
+  }),
+  {
+    denylist: [/^\/api(?:\/|$)/, /^\/socket\.io(?:\/|$)/]
+  }
+));
 cleanupOutdatedCaches();
 clientsClaim();
 self.skipWaiting();
+
+self.addEventListener("activate", (event) => {
+  event.waitUntil((async () => {
+    const navigationCache = await caches.open("barsikchat-navigation");
+    const cachedRequests = await navigationCache.keys();
+    await Promise.all(cachedRequests
+      .filter((request) => {
+        const pathname = new URL(request.url).pathname;
+        return pathname.startsWith("/api/") || pathname.startsWith("/socket.io/");
+      })
+      .map((request) => navigationCache.delete(request)));
+  })());
+});
 
 self.addEventListener("push", (event) => {
   const payload = event.data?.json() ?? {};
@@ -46,7 +64,8 @@ self.addEventListener("push", (event) => {
 
 self.addEventListener("notificationclick", (event) => {
   event.notification.close();
-  const targetUrl = new URL(event.notification.data?.url ?? "/", self.location.origin).href;
+  const requestedUrl = new URL(event.notification.data?.url ?? "/", self.location.origin);
+  const targetUrl = requestedUrl.origin === self.location.origin ? requestedUrl.href : `${self.location.origin}/`;
   const targetConversationId = new URL(targetUrl).searchParams.get("chat");
   event.waitUntil(
     (async () => {

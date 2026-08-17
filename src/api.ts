@@ -1,4 +1,14 @@
-import type { Attachment, Conversation, DirectoryUser, Message, User } from "./types";
+import type {
+  Attachment,
+  ChatFolder,
+  Conversation,
+  DirectoryUser,
+  Message,
+  MessageSearchFilters,
+  MessageSearchResult,
+  NotificationMode,
+  User
+} from "./types";
 
 export class ApiError extends Error {
   status: number;
@@ -43,6 +53,12 @@ export const api = {
   },
   deleteAvatar: () => request<{ user: User }>("/api/profile/avatar", { method: "DELETE" }),
   conversations: () => request<{ conversations: Conversation[] }>("/api/conversations"),
+  folders: () => request<{ folders: ChatFolder[] }>("/api/folders"),
+  createFolder: (title: string) => request<{ folder: ChatFolder }>("/api/folders", { method: "POST", body: JSON.stringify({ title }) }),
+  updateFolder: (folderId: string, title: string) => request<{ folder: ChatFolder }>(`/api/folders/${folderId}`, { method: "PATCH", body: JSON.stringify({ title }) }),
+  updateFolderItems: (folderId: string, conversationIds: string[]) => request<void>(`/api/folders/${folderId}/items`, { method: "PUT", body: JSON.stringify({ conversationIds }) }),
+  deleteFolder: (folderId: string) => request<void>(`/api/folders/${folderId}`, { method: "DELETE" }),
+  savedConversation: () => request<{ conversation: Conversation }>("/api/conversations/saved", { method: "POST" }),
   users: (search = "") =>
     request<{ users: DirectoryUser[] }>(`/api/users?search=${encodeURIComponent(search)}`),
   createDirect: (userId: string) =>
@@ -55,10 +71,49 @@ export const api = {
       method: "POST",
       body: JSON.stringify({ title, memberIds })
     }),
+  updateGroup: (conversationId: string, title: string) =>
+    request<{ conversation: Conversation }>(`/api/conversations/${conversationId}/group`, {
+      method: "PATCH",
+      body: JSON.stringify({ title })
+    }),
+  addGroupMembers: (conversationId: string, userIds: string[]) =>
+    request<{ conversation: Conversation }>(`/api/conversations/${conversationId}/members`, {
+      method: "POST",
+      body: JSON.stringify({ userIds })
+    }),
+  removeGroupMember: (conversationId: string, userId: string) =>
+    request<{ conversation: Conversation }>(`/api/conversations/${conversationId}/members/${userId}`, {
+      method: "DELETE"
+    }),
+  setGroupMemberRole: (conversationId: string, userId: string, role: "admin" | "member") =>
+    request<{ conversation: Conversation }>(`/api/conversations/${conversationId}/members/${userId}/role`, {
+      method: "PATCH",
+      body: JSON.stringify({ role })
+    }),
+  uploadGroupAvatar: (conversationId: string, file: File) => {
+    const form = new FormData();
+    form.append("avatar", file);
+    return request<{ conversation: Conversation }>(`/api/conversations/${conversationId}/avatar`, {
+      method: "POST",
+      body: form
+    });
+  },
+  deleteGroupAvatar: (conversationId: string) =>
+    request<{ conversation: Conversation }>(`/api/conversations/${conversationId}/avatar`, { method: "DELETE" }),
+  updateNotifications: (conversationId: string, mode: NotificationMode, muteUntil?: string | null) =>
+    request<{ conversation: Conversation }>(`/api/conversations/${conversationId}/notifications`, {
+      method: "PATCH",
+      body: JSON.stringify({ mode, muteUntil: muteUntil ?? null })
+    }),
   pinConversation: (conversationId: string, pinned: boolean) =>
     request<{ pinned: boolean }>(`/api/conversations/${conversationId}/pin`, {
       method: "PATCH",
       body: JSON.stringify({ pinned })
+    }),
+  archiveConversation: (conversationId: string, archived: boolean) =>
+    request<{ archived: boolean }>(`/api/conversations/${conversationId}/archive`, {
+      method: "PATCH",
+      body: JSON.stringify({ archived })
     }),
   deleteConversation: (conversationId: string) =>
     request<void>(`/api/conversations/${conversationId}`, { method: "DELETE" }),
@@ -68,21 +123,47 @@ export const api = {
     request<{ messages: Message[]; hasMore: boolean }>(
       `/api/conversations/${conversationId}/messages${before ? `?before=${encodeURIComponent(before)}` : ""}`
     ),
+  searchMessages: (filters: MessageSearchFilters) => {
+    const params = new URLSearchParams();
+    Object.entries(filters).forEach(([key, value]) => {
+      if (value !== undefined && value !== "") params.set(key, String(value));
+    });
+    return request<{ results: MessageSearchResult[] }>(`/api/messages/search?${params}`);
+  },
+  messageContext: (messageId: string) =>
+    request<{ conversationId: string; messages: Message[] }>(`/api/messages/${messageId}/context`),
+  pinnedMessages: (conversationId: string) =>
+    request<{ messages: Message[] }>(`/api/conversations/${conversationId}/pins`),
   sendMessage: (
     conversationId: string,
-    input: { body: string; replyToId?: string | null; clientId: string; attachmentIds: string[] }
+    input: {
+      body: string;
+      replyToId?: string | null;
+      clientId: string;
+      attachmentIds: string[];
+      silent?: boolean;
+      scheduleAt?: string | null;
+      expireSeconds?: number | null;
+      viewOnce?: boolean;
+    }
   ) =>
     request<{ message: Message }>(`/api/conversations/${conversationId}/messages`, {
       method: "POST",
       body: JSON.stringify(input)
     }),
-  editMessage: (messageId: string, body: string) =>
+  editMessage: (messageId: string, body: string, attachmentIds: string[]) =>
     request<{ message: Message }>(`/api/messages/${messageId}`, {
       method: "PATCH",
-      body: JSON.stringify({ body })
+      body: JSON.stringify({ body, attachmentIds })
     }),
-  deleteMessage: (messageId: string) =>
-    request<{ message: Message }>(`/api/messages/${messageId}`, { method: "DELETE" }),
+  deleteMessage: (messageId: string, scope: "self" | "everyone") =>
+    request<{ message: Message } | void>(`/api/messages/${messageId}?scope=${scope}`, { method: "DELETE" }),
+  pinMessage: (messageId: string) =>
+    request<{ message: Message }>(`/api/messages/${messageId}/pin`, { method: "POST" }),
+  unpinMessage: (messageId: string) =>
+    request<{ message: Message }>(`/api/messages/${messageId}/pin`, { method: "DELETE" }),
+  viewOnce: (messageId: string) =>
+    request<{ message: Message }>(`/api/messages/${messageId}/view-once`, { method: "POST" }),
   forwardMessage: (messageId: string, targetConversationId: string) =>
     request<{ message: Message }>(`/api/messages/${messageId}/forward`, {
       method: "POST",
@@ -90,6 +171,8 @@ export const api = {
     }),
   read: (conversationId: string) =>
     request<void>(`/api/conversations/${conversationId}/read`, { method: "POST" }),
+  markUnread: (conversationId: string) =>
+    request<void>(`/api/conversations/${conversationId}/unread`, { method: "POST" }),
   upload: async (
     files: File[],
     metadata?: { kind: "voice" | "video_circle"; durationMs: number }
