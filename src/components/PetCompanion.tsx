@@ -8,7 +8,7 @@ import {
 import { EyeSlash, PawPrint, Play } from "@phosphor-icons/react";
 import { clampPetX, PET_POSITION_KEY, type PetNotification } from "../pet";
 import petSpritesUrl from "../assets/barsik-pet-actions-v3.png";
-import petIdleUrl from "../assets/pet-states/barsik-metallica-sweater.png";
+import petIdleUrl from "../assets/pet-states/barsik-metallica-idle-v2.png";
 import "../pet.css";
 
 type PetCompanionProps = {
@@ -24,6 +24,16 @@ type IdlePetMode = Exclude<PetMode, "walk" | "excited">;
 // At 148 px of visible art this gives a 166.5 px frame footprint.
 const PET_WIDTH = 167;
 const FRAME_POSITIONS = ["0%", "11.1111%", "22.2222%", "33.3333%", "44.4444%", "55.5556%", "66.6667%", "77.7778%", "88.8889%", "100%"];
+const IDLE_FRAME_POSITIONS = ["0%", "25%", "50%", "75%", "100%"];
+const IDLE_SEQUENCE = [
+  { frame: 0, duration: 1_300 },
+  { frame: 1, duration: 460 },
+  { frame: 2, duration: 300 },
+  { frame: 3, duration: 580 },
+  { frame: 4, duration: 720 },
+  { frame: 3, duration: 520 },
+  { frame: 1, duration: 440 }
+];
 
 function randomBetween(min: number, max: number) {
   return min + Math.random() * (max - min);
@@ -50,6 +60,7 @@ export function PetCompanion({ notification, onOpenConversation, onDisable }: Pe
   const [x, setX] = useState(initialPosition);
   const [direction, setDirection] = useState<1 | -1>(-1);
   const [frame, setFrame] = useState(0);
+  const [idleFrame, setIdleFrame] = useState(0);
   const [mode, setMode] = useState<PetMode>("sit");
   const [visibleNotification, setVisibleNotification] = useState<PetNotification | null>(null);
   const [greeting, setGreeting] = useState("Мяу! Я рядом.");
@@ -147,6 +158,25 @@ export function PetCompanion({ notification, onOpenConversation, onDisable }: Pe
   }, [dragging, mode, visibleNotification]);
 
   useEffect(() => {
+    setIdleFrame(0);
+    if (mode !== "sit" || dragging || visibleNotification) return;
+    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+
+    let sequenceIndex = 0;
+    let timer = 0;
+    const advance = () => {
+      timer = window.setTimeout(() => {
+        sequenceIndex = (sequenceIndex + 1) % IDLE_SEQUENCE.length;
+        setIdleFrame(IDLE_SEQUENCE[sequenceIndex].frame);
+        advance();
+      }, IDLE_SEQUENCE[sequenceIndex].duration);
+    };
+    advance();
+
+    return () => window.clearTimeout(timer);
+  }, [dragging, mode, visibleNotification]);
+
+  useEffect(() => {
     const resize = () => {
       const next = clampPetX(xRef.current, window.innerWidth, PET_WIDTH);
       xRef.current = next;
@@ -225,7 +255,8 @@ export function PetCompanion({ notification, onOpenConversation, onDisable }: Pe
     // actually changes travel direction at a screen edge.
     "--pet-direction": direction === -1 ? 1 : -1,
     "--pet-sprites": `url("${petSpritesUrl}")`,
-    "--pet-idle": `url("${petIdleUrl}")`
+    "--pet-idle": `url("${petIdleUrl}")`,
+    "--pet-idle-frame": IDLE_FRAME_POSITIONS[idleFrame]
   } as CSSProperties;
   const alignRight = x > (typeof window === "undefined" ? 640 : window.innerWidth / 2);
 
