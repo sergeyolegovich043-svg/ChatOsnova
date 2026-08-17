@@ -8,6 +8,7 @@ import {
 import { EyeSlash, PawPrint, Play } from "@phosphor-icons/react";
 import { clampPetX, PET_POSITION_KEY, type PetNotification } from "../pet";
 import petSpritesUrl from "../assets/barsik-pet-actions-v3.png";
+import petIdleUrl from "../assets/pet-states/barsik-metallica-sweater.png";
 import "../pet.css";
 
 type PetCompanionProps = {
@@ -223,7 +224,8 @@ export function PetCompanion({ notification, onOpenConversation, onDisable }: Pe
     // Both walking frames face left. Mirror the whole cycle only when Barsik
     // actually changes travel direction at a screen edge.
     "--pet-direction": direction === -1 ? 1 : -1,
-    "--pet-sprites": `url("${petSpritesUrl}")`
+    "--pet-sprites": `url("${petSpritesUrl}")`,
+    "--pet-idle": `url("${petIdleUrl}")`
   } as CSSProperties;
   const alignRight = x > (typeof window === "undefined" ? 640 : window.innerWidth / 2);
 
@@ -278,6 +280,7 @@ export function PetCompanion({ notification, onOpenConversation, onDisable }: Pe
         }}
       >
         <span className="pet-sprite" aria-hidden="true" />
+        <span className="pet-idle-sprite" aria-hidden="true" />
       </button>
       <span className="pet-ground-shadow" aria-hidden="true" />
     </aside>

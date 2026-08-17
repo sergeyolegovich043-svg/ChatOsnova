@@ -49,10 +49,29 @@
   transition: filter 120ms ease;
 }
 
+.pet-idle-sprite {
+  position: absolute;
+  inset: 0;
+  display: none;
+  background-image: var(--pet-idle);
+  background-repeat: no-repeat;
+  background-position: 50% 100%;
+  background-size: contain;
+  image-rendering: pixelated;
+  image-rendering: crisp-edges;
+  transform-origin: 50% 92%;
+  will-change: transform, filter;
+}
+
 .pet-sprite-button:hover .pet-sprite { filter: brightness(1.1) saturate(1.08); }
+.pet-sprite-button:hover .pet-idle-sprite { filter: brightness(1.08) saturate(1.06); }
 .pet-walk .pet-sprite { animation: pet-pixel-step 460ms steps(2, end) infinite; }
 .pet-excited .pet-sprite { animation: pet-pixel-excited 520ms steps(2, end) infinite; }
-.pet-sit .pet-sprite { animation: pet-pixel-breathe 2.4s steps(2, end) infinite; }
+.pet-sit .pet-sprite { display: none; }
+.pet-sit .pet-idle-sprite {
+  display: block;
+  animation: pet-idle-wait 6.8s ease-in-out infinite;
+}
 .pet-groom .pet-sprite { animation: pet-pixel-groom 1.24s steps(2, end) infinite; }
 .pet-play .pet-sprite { animation: pet-pixel-play 920ms steps(2, end) infinite; }
 
@@ -68,6 +87,8 @@
   filter: blur(5px);
   pointer-events: none;
 }
+
+.pet-sit .pet-ground-shadow { animation: pet-idle-shadow 6.8s ease-in-out infinite; }
 
 .pet-speech,
 .pet-menu {
@@ -173,8 +194,24 @@
   50% { transform: translateY(-7px) scaleX(var(--pet-direction)); }
 }
 
-@keyframes pet-pixel-breathe {
-  50% { transform: translateY(1px) scaleX(var(--pet-direction)); }
+@keyframes pet-idle-wait {
+  0%, 14%, 40%, 72%, 100% {
+    transform: translateY(0) scale(1);
+    filter: brightness(1) saturate(1);
+  }
+  22% { transform: translateY(-1px) scale(1.004, .997); }
+  31% { transform: translateY(0) scale(.998, 1.004); }
+  76% { transform: translateY(-1px) rotate(-.45deg) scale(1.002); }
+  79% { transform: translateY(-1px) rotate(.45deg) scale(1.002); }
+  82% { transform: translateY(0) rotate(0) scale(1); }
+  91% { filter: brightness(1.045) saturate(1.04); }
+}
+
+@keyframes pet-idle-shadow {
+  0%, 14%, 40%, 72%, 100% { transform: scaleX(1); opacity: .52; }
+  22% { transform: scaleX(.97); opacity: .48; }
+  31% { transform: scaleX(1.01); opacity: .53; }
+  76%, 79% { transform: scaleX(.985); opacity: .5; }
 }
 
 @keyframes pet-pixel-groom {
@@ -206,6 +243,8 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .pet-sprite { animation: none !important; }
+  .pet-sprite,
+  .pet-idle-sprite,
+  .pet-ground-shadow { animation: none !important; }
   .pet-companion { transition: none; }
 }
