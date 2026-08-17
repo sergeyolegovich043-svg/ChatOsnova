@@ -1,3 +1,7 @@
+{
+    default_sni {$BARSIKCHAT_DOMAIN}
+}
+
 {$BARSIKCHAT_DOMAIN} {
     tls {
         issuer acme {
