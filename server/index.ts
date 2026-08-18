@@ -22,7 +22,7 @@ import {
   type AuthenticatedRequest
 } from "./auth.js";
 import { getConversationMessages, getMessage, getMessageContext, getPinnedMessages, searchMessages } from "./messages.js";
-import { publicVapidKey, sendMessagePush } from "./push.js";
+import { publicVapidKey, pushEnabled, sendMessagePush, sendTestPush } from "./push.js";
 import {
   createRealtimeServer,
   emitToConversation,
@@ -2136,6 +2136,23 @@ app.post("/api/push/subscribe", requireAuth, async (request, response, next) => 
       [randomUUID(), authRequest(request).user.id, input.endpoint, input.keys.p256dh, input.keys.auth]
     );
     response.status(201).json({ ok: true });
+  } catch (error) {
+    next(error);
+  }
+});
+
+app.post("/api/push/test", requireAuth, async (request, response, next) => {
+  try {
+    if (!pushEnabled) {
+      response.status(503).json({ error: "Web Push не настроен на сервере" });
+      return;
+    }
+    const delivered = await sendTestPush(authRequest(request).user.id);
+    if (!delivered) {
+      response.status(409).json({ error: "Активная push-подписка не найдена. Включите уведомления ещё раз." });
+      return;
+    }
+    response.json({ delivered });
   } catch (error) {
     next(error);
   }

@@ -4,6 +4,8 @@ import { AuthScreen } from "./components/AuthScreen";
 import { BrandLogo } from "./components/BrandLogo";
 import { InstallAppPrompt } from "./components/InstallAppPrompt";
 import { Messenger } from "./components/Messenger";
+import { NotificationPermissionPrompt } from "./components/NotificationPermissionPrompt";
+import { isPushNotificationSupported, syncPushNotifications, type PushNotificationStatus } from "./push-notifications";
 import type { ColorTheme, User } from "./types";
 
 export type InstallPromptEvent = Event & {
@@ -12,6 +14,7 @@ export type InstallPromptEvent = Event & {
 };
 
 const INSTALL_DISMISSED_KEY = "barsikchat.install-prompt-dismissed";
+const NOTIFICATION_DISMISSED_KEY = "barsikchat.notification-prompt-dismissed";
 const THEME_KEY = "barsikchat.theme";
 
 function isStandaloneMode() {
@@ -32,6 +35,9 @@ export default function App() {
   const [installBusy, setInstallBusy] = useState(false);
   const [installed, setInstalled] = useState(isStandaloneMode);
   const [iosBrowser] = useState(isIosBrowser);
+  const [notificationPromptOpen, setNotificationPromptOpen] = useState(false);
+  const [notificationStatus, setNotificationStatus] = useState<PushNotificationStatus>("idle");
+  const [notificationError, setNotificationError] = useState("");
 
   function changeTheme(nextTheme: ColorTheme) {
     document.documentElement.dataset.theme = nextTheme;
@@ -86,6 +92,64 @@ export default function App() {
       if (installTimer) window.clearTimeout(installTimer);
     };
   }, [installed, iosBrowser]);
+
+  useEffect(() => {
+    if (!user || !isPushNotificationSupported()) return;
+    let cancelled = false;
+    let promptTimer = 0;
+
+    if (Notification.permission === "granted") {
+      setNotificationStatus("syncing");
+      void syncPushNotifications()
+        .then((status) => {
+          if (cancelled) return;
+          setNotificationStatus(status);
+          setNotificationPromptOpen(status !== "enabled" && installed);
+        })
+        .catch((caught) => {
+          if (cancelled) return;
+          setNotificationStatus("error");
+          setNotificationError(caught instanceof Error ? caught.message : "Не удалось восстановить push-подписку");
+          if (installed) setNotificationPromptOpen(true);
+        });
+    } else if (Notification.permission === "denied") {
+      setNotificationStatus("denied");
+      setNotificationError("Уведомления заблокированы. Разрешите их в системных настройках BarsikChat или браузера.");
+      if (installed && sessionStorage.getItem(NOTIFICATION_DISMISSED_KEY) !== "1") {
+        promptTimer = window.setTimeout(() => setNotificationPromptOpen(true), 700);
+      }
+    } else if (installed && sessionStorage.getItem(NOTIFICATION_DISMISSED_KEY) !== "1") {
+      promptTimer = window.setTimeout(() => setNotificationPromptOpen(true), 700);
+    }
+
+    return () => {
+      cancelled = true;
+      window.clearTimeout(promptTimer);
+    };
+  }, [installed, user]);
+
+  async function enableNotifications() {
+    setNotificationStatus("syncing");
+    setNotificationError("");
+    try {
+      const status = await syncPushNotifications(true);
+      setNotificationStatus(status);
+      if (status === "enabled") {
+        setNotificationPromptOpen(false);
+        sessionStorage.removeItem(NOTIFICATION_DISMISSED_KEY);
+      } else if (status === "denied") {
+        setNotificationError("Уведомления заблокированы. Разрешите их в настройках приложения или браузера.");
+      }
+    } catch (caught) {
+      setNotificationStatus("error");
+      setNotificationError(caught instanceof Error ? caught.message : "Не удалось включить уведомления");
+    }
+  }
+
+  function dismissNotificationPrompt() {
+    sessionStorage.setItem(NOTIFICATION_DISMISSED_KEY, "1");
+    setNotificationPromptOpen(false);
+  }
 
   function dismissInstallNotice() {
     sessionStorage.setItem(INSTALL_DISMISSED_KEY, "1");
@@ -147,6 +211,14 @@ export default function App() {
           busy={installBusy}
           onInstall={installApp}
           onDismiss={dismissInstallNotice}
+        />
+      )}
+      {notificationPromptOpen && user && (
+        <NotificationPermissionPrompt
+          status={notificationStatus}
+          error={notificationError}
+          onEnable={enableNotifications}
+          onDismiss={dismissNotificationPrompt}
         />
       )}
     </>

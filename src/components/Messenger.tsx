@@ -52,6 +52,7 @@ import { api } from "../api";
 import { isChatNearBottom, scrollTopAfterPrepend } from "../chat-scroll";
 import { featureFlags } from "../features";
 import { applyReadReceipt, messageDeliveryState, shouldShowPopup, upsertMessage } from "../message-state";
+import { playIncomingMessageSound, unlockNotificationSound } from "../notification-sound";
 import {
   hasNativePetBridge,
   isPetQuiet,
@@ -468,6 +469,20 @@ export function Messenger({ user, setUser, onLogout, canInstall, installApp, the
   }, [loadConversations, loadFolders]);
 
   useEffect(() => {
+    const unlock = () => {
+      void unlockNotificationSound();
+      window.removeEventListener("pointerdown", unlock);
+      window.removeEventListener("keydown", unlock);
+    };
+    window.addEventListener("pointerdown", unlock, { passive: true });
+    window.addEventListener("keydown", unlock);
+    return () => {
+      window.removeEventListener("pointerdown", unlock);
+      window.removeEventListener("keydown", unlock);
+    };
+  }, []);
+
+  useEffect(() => {
     const socket = io({ withCredentials: true });
     socketRef.current = socket;
 
@@ -477,6 +492,15 @@ export function Messenger({ user, setUser, onLogout, canInstall, installApp, the
         && document.visibilityState === "visible"
         && document.hasFocus();
       const conversationAtArrival = conversationsRef.current.find((conversation) => conversation.id === message.conversationId);
+      const notificationsAllowed = !conversationAtArrival || shouldShowPopup(
+        conversationAtArrival.notificationMode ?? "all",
+        conversationAtArrival.muteUntil ?? null,
+        message.body,
+        user.username
+      );
+      if (!isOwnMessage && !message.silent && notificationsAllowed && document.visibilityState === "visible" && document.hasFocus()) {
+        void playIncomingMessageSound();
+      }
       if (!isOwnMessage && message.reply?.senderId === user.id) {
         triggerPetReaction({
           id: `incoming-reply:${message.id}`,

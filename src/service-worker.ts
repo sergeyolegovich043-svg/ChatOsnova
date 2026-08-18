@@ -49,12 +49,14 @@ self.addEventListener("push", (event) => {
       const windows = await self.clients.matchAll({ type: "window", includeUncontrolled: true });
       if (isConversationActivelyViewed(windows, payload.conversationId)) return;
 
-      const options: NotificationOptions & { vibrate?: number[] } = {
+      const options: NotificationOptions & { renotify?: boolean; vibrate?: number[] } = {
         body: payload.body ?? "Новое сообщение",
         icon: "/icon-192.png",
         badge: "/icon-192.png",
         tag: payload.conversationId ?? "message",
         data: { url: payload.url ?? "/" },
+        renotify: true,
+        silent: false,
         vibrate: [120, 50, 120]
       };
       await self.registration.showNotification(payload.title ?? "BarsikChat", options);

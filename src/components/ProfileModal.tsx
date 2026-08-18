@@ -1,6 +1,7 @@
 import { lazy, Suspense, useEffect, useRef, useState, type ChangeEvent, type FormEvent } from "react";
 import {
   Bell,
+  BellRinging,
   BellSlash as BellOff,
   DownloadSimple as Download,
   FloppyDisk as Save,
@@ -14,6 +15,7 @@ import {
 import { api } from "../api";
 import { featureFlags } from "../features";
 import type { PetPreferences } from "../pet";
+import { isPushNotificationSupported, syncPushNotifications, type PushNotificationStatus } from "../push-notifications";
 import type { ColorTheme, User } from "../types";
 import { Avatar } from "./Avatar";
 
@@ -37,13 +39,6 @@ type ProfileModalProps = {
   onClose: () => void;
 };
 
-function urlBase64ToUint8Array(value: string) {
-  const padding = "=".repeat((4 - (value.length % 4)) % 4);
-  const base64 = (value + padding).replace(/-/g, "+").replace(/_/g, "/");
-  const rawData = window.atob(base64);
-  return Uint8Array.from([...rawData].map((character) => character.charCodeAt(0)));
-}
-
 export function ProfileModal({
   user,
   canInstall,
@@ -62,16 +57,23 @@ export function ProfileModal({
   const [saving, setSaving] = useState(false);
   const [avatarSaving, setAvatarSaving] = useState(false);
   const [error, setError] = useState("");
-  const [notificationState, setNotificationState] = useState<"idle" | "enabled" | "unsupported">("idle");
+  const [notificationState, setNotificationState] = useState<PushNotificationStatus>("idle");
+  const [testingNotification, setTestingNotification] = useState(false);
   const avatarInputRef = useRef<HTMLInputElement | null>(null);
 
   useEffect(() => {
-    if (!("Notification" in window) || !("serviceWorker" in navigator) || !("PushManager" in window)) {
+    if (!isPushNotificationSupported()) {
       setNotificationState("unsupported");
+    } else if (Notification.permission === "denied") {
+      setNotificationState("denied");
     } else if (Notification.permission === "granted") {
-      navigator.serviceWorker.ready
-        .then((registration) => registration.pushManager.getSubscription())
-        .then((subscription) => subscription && setNotificationState("enabled"));
+      setNotificationState("syncing");
+      void syncPushNotifications()
+        .then(setNotificationState)
+        .catch((caught) => {
+          setNotificationState("error");
+          setError(caught instanceof Error ? caught.message : "Не удалось восстановить push-подписку");
+        });
     }
   }, []);
 
@@ -134,26 +136,26 @@ export function ProfileModal({
   async function enableNotifications() {
     setError("");
     try {
-      const permission = await Notification.requestPermission();
-      if (permission !== "granted") {
-        setError("Разрешите уведомления в настройках браузера");
-        return;
-      }
-      const { publicKey } = await api.pushPublicKey();
-      if (!publicKey) {
-        setError("Администратор ещё не настроил ключи Web Push");
-        return;
-      }
-      const registration = await navigator.serviceWorker.ready;
-      const existing = await registration.pushManager.getSubscription();
-      const subscription = existing ?? await registration.pushManager.subscribe({
-        userVisibleOnly: true,
-        applicationServerKey: urlBase64ToUint8Array(publicKey)
-      });
-      await api.subscribePush(subscription.toJSON());
-      setNotificationState("enabled");
+      setNotificationState("syncing");
+      const status = await syncPushNotifications(true);
+      setNotificationState(status);
+      if (status === "denied") setError("Уведомления заблокированы. Разрешите их в настройках приложения или браузера.");
     } catch (caught) {
+      setNotificationState("error");
       setError(caught instanceof Error ? caught.message : "Не удалось включить уведомления");
+    }
+  }
+
+  async function testNotifications() {
+    setTestingNotification(true);
+    setError("");
+    try {
+      await syncPushNotifications();
+      await api.testPush();
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : "Не удалось отправить тестовое уведомление");
+    } finally {
+      setTestingNotification(false);
     }
   }
 
@@ -183,10 +185,19 @@ export function ProfileModal({
           <button className="secondary-button save-profile" type="submit" disabled={saving}><Save size={17} /> {saving ? "Сохраняем…" : "Сохранить профиль"}</button>
         </form>
         <div className="settings-list">
-          <button onClick={enableNotifications} disabled={notificationState !== "idle"}>
+          <button onClick={enableNotifications} disabled={!(["idle", "error"] as PushNotificationStatus[]).includes(notificationState)}>
             <span className="setting-icon">{notificationState === "unsupported" ? <BellOff size={19} /> : <Bell size={19} />}</span>
-            <span><strong>{notificationState === "enabled" ? "Уведомления включены" : "Включить уведомления"}</strong><small>{notificationState === "unsupported" ? "Не поддерживаются этим браузером" : "Получать сообщения, когда приложение закрыто"}</small></span>
+            <span>
+              <strong>{notificationState === "enabled" ? "Уведомления включены" : notificationState === "syncing" ? "Подключаем уведомления…" : "Включить уведомления"}</strong>
+              <small>{notificationState === "unsupported" ? "Не поддерживаются этим браузером" : notificationState === "denied" ? "Разрешите их в настройках приложения" : "Push и звук, когда приложение закрыто"}</small>
+            </span>
           </button>
+          {notificationState === "enabled" && (
+            <button type="button" onClick={() => void testNotifications()} disabled={testingNotification}>
+              <span className="setting-icon"><BellRinging size={19} /></span>
+              <span><strong>{testingNotification ? "Отправляем…" : "Проверить уведомления"}</strong><small>Получить тестовый push со звуком на этом устройстве</small></span>
+            </button>
+          )}
           {canInstall && (
             <button onClick={installApp}>
               <span className="setting-icon"><Download size={19} /></span>
