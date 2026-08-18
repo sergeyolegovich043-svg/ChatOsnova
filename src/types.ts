@@ -139,3 +139,20 @@ export type MessageSearchResult = {
   message: Message;
   conversation: Conversation;
 };
+
+export type AiMode = "search" | "summary" | "draft";
+
+export type AiCitation = {
+  sourceId: string;
+  label: string;
+};
+
+export type AiAnswer = {
+  answer: string;
+  citations: AiCitation[];
+};
+
+export type AiStreamEvent =
+  | { type: "status"; stage: "retrieval" | "generation" | "moderation" }
+  | { type: "progress"; generatedChars: number }
+  | { type: "result"; result: AiAnswer };

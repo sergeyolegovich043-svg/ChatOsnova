@@ -71,6 +71,7 @@ import { MessageComposer } from "./MessageComposer";
 import { NewChatModal } from "./NewChatModal";
 import { ProfileModal } from "./ProfileModal";
 import { ChatDetailsModal } from "./ChatDetailsModal";
+import { AiAssistantModal } from "./AiAssistantModal";
 import { ForwardMessageModal } from "./ForwardMessageModal";
 import { FormattedMessage, mentionsUsername } from "./FormattedMessage";
 
@@ -234,6 +235,7 @@ export function Messenger({ user, setUser, onLogout, canInstall, installApp, the
   const [newChatOpen, setNewChatOpen] = useState(false);
   const [profileOpen, setProfileOpen] = useState(false);
   const [detailsOpen, setDetailsOpen] = useState(false);
+  const [aiOpen, setAiOpen] = useState(false);
   const [highlightedMessageId, setHighlightedMessageId] = useState<string | null>(() => new URLSearchParams(window.location.search).get("message"));
   const [reactionPickerFor, setReactionPickerFor] = useState<string | null>(null);
   const [messageMenu, setMessageMenu] = useState<MessageMenu | null>(null);
@@ -764,6 +766,20 @@ export function Messenger({ user, setUser, onLogout, canInstall, installApp, the
       openConversation(context.conversationId, result.message.id);
     } catch (caught) {
       showToast(caught instanceof Error ? caught.message : "Не удалось открыть найденное сообщение");
+    }
+  }
+
+  async function openAiSource(messageId: string) {
+    try {
+      const context = await api.messageContext(messageId);
+      setMessages((current) => ({
+        ...current,
+        [context.conversationId]: context.messages.reduce(upsertMessage, current[context.conversationId] ?? [])
+      }));
+      setAiOpen(false);
+      openConversation(context.conversationId, messageId);
+    } catch (caught) {
+      showToast(caught instanceof Error ? caught.message : "Источник больше недоступен");
     }
   }
 
@@ -1740,6 +1756,7 @@ export function Messenger({ user, setUser, onLogout, canInstall, installApp, the
         </div>
       )}
       {detailsOpen && activeConversation && <ChatDetailsModal conversation={activeConversation} currentUser={user} onConversationChange={updateConversation} onError={showToast} onClose={() => setDetailsOpen(false)} />}
+      {aiOpen && <AiAssistantModal conversation={activeConversation} onOpenSource={(messageId) => void openAiSource(messageId)} onClose={() => setAiOpen(false)} />}
       {profileOpen && (
         <ProfileModal
           user={user}
@@ -1779,6 +1796,7 @@ export function Messenger({ user, setUser, onLogout, canInstall, installApp, the
             activity={petActivity}
             notification={petNotification}
             onOpenConversation={openConversation}
+            onOpenAssistant={() => setAiOpen(true)}
             onDisable={() => setPetEnabled(false)}
           />
         </Suspense>

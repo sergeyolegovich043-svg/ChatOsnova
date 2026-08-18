@@ -38,10 +38,26 @@ export const config = {
   sessionDays: numberFromEnv("SESSION_DAYS", 30),
   maxUsers: numberFromEnv("MAX_USERS", 100),
   maxUploadMb: numberFromEnv("MAX_UPLOAD_MB", 20),
+  maxUserStorageMb: numberFromEnv("MAX_USER_STORAGE_MB", 500),
   dataDir: path.resolve(process.env.DATA_DIR ?? "data"),
   vapidPublicKey: process.env.VAPID_PUBLIC_KEY ?? "",
   vapidPrivateKey: process.env.VAPID_PRIVATE_KEY ?? "",
   vapidSubject: process.env.VAPID_SUBJECT ?? "mailto:admin@example.com",
   isProduction,
-  secureCookies: isProduction || appOrigin.startsWith("https://")
+  secureCookies: isProduction || appOrigin.startsWith("https://"),
+  ai: {
+    availableInEnvironment: !isProduction,
+    enabled: !isProduction && process.env.AI_ENABLED === "true",
+    apiKey: process.env.OPENAI_API_KEY ?? "",
+    model: "gpt-5.6-luna",
+    embeddingModel: "text-embedding-3-small",
+    moderationModel: "omni-moderation-latest",
+    timeoutMs: numberFromEnv("AI_TIMEOUT_MS", 45_000),
+    maxContextChars: numberFromEnv("AI_MAX_CONTEXT_CHARS", 24_000),
+    maxOutputTokens: numberFromEnv("AI_MAX_OUTPUT_TOKENS", 1_200),
+    requestsPerMinute: numberFromEnv("AI_REQUESTS_PER_MINUTE", 8),
+    monthlyBudgetUsd: numberFromEnv("AI_MONTHLY_BUDGET_USD", 5),
+    inputUsdPerMillion: numberFromEnv("AI_INPUT_USD_PER_MILLION", 0.2),
+    outputUsdPerMillion: numberFromEnv("AI_OUTPUT_USD_PER_MILLION", 1.2)
+  }
 };

@@ -9,6 +9,7 @@ import type {
   NotificationMode,
   User
 } from "./types";
+import type { AiMode, AiStreamEvent } from "./types";
 
 export class ApiError extends Error {
   status: number;
@@ -195,5 +196,42 @@ export const api = {
     request<{ ok: true }>("/api/push/subscribe", {
       method: "POST",
       body: JSON.stringify(subscription)
-    })
+    }),
+  aiStatus: () => request<{ enabled: boolean; readOnly: boolean; model: string | null; reason: string | null }>("/api/ai/status"),
+  streamAi: async (
+    input: { mode: AiMode; prompt: string; conversationId?: string },
+    onEvent: (event: AiStreamEvent) => void,
+    signal?: AbortSignal
+  ) => {
+    const response = await fetch("/api/ai/stream", {
+      method: "POST",
+      credentials: "include",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(input),
+      signal
+    });
+    if (!response.ok) {
+      const payload = await response.json().catch(() => null);
+      throw new ApiError(payload?.error ?? "Барсик не смог выполнить запрос", response.status);
+    }
+    if (!response.body) throw new ApiError("Сервер не открыл поток ответа", 502);
+    const reader = response.body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = "";
+    while (true) {
+      const { done, value } = await reader.read();
+      buffer += decoder.decode(value, { stream: !done });
+      const frames = buffer.split(/\r?\n\r?\n/);
+      buffer = frames.pop() ?? "";
+      for (const frame of frames) {
+        const eventName = frame.split(/\r?\n/).find((line) => line.startsWith("event:"))?.slice(6).trim();
+        const data = frame.split(/\r?\n/).filter((line) => line.startsWith("data:")).map((line) => line.slice(5).trim()).join("\n");
+        if (!data) continue;
+        const payload = JSON.parse(data) as AiStreamEvent | { error?: string };
+        if (eventName === "error") throw new ApiError("error" in payload ? payload.error ?? "Ошибка Барсика" : "Ошибка Барсика", 502);
+        if (eventName !== "done") onEvent(payload as AiStreamEvent);
+      }
+      if (done) break;
+    }
+  }
 };

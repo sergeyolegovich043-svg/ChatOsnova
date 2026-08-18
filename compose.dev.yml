@@ -15,11 +15,15 @@ services:
       SESSION_DAYS: 7
       MAX_USERS: 100
       MAX_UPLOAD_MB: 50
+      MAX_USER_STORAGE_MB: 500
       DATA_DIR: /app/data-dev
       CHOKIDAR_USEPOLLING: "true"
       VITE_APP_ENV: development
       VITE_ENABLE_PET: "true"
       VITE_DEV_API_TARGET: http://127.0.0.1:3101
+      AI_ENABLED: ${AI_ENABLED:-true}
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      AI_MONTHLY_BUDGET_USD: ${AI_MONTHLY_BUDGET_USD:-5}
     ports:
       - "127.0.0.1:3100:5173"
     volumes:
@@ -32,8 +36,27 @@ services:
       timeout: 5s
       retries: 12
 
+  worker:
+    image: node:22-alpine
+    working_dir: /app
+    command: npm run dev:worker
+    restart: unless-stopped
+    depends_on:
+      app:
+        condition: service_healthy
+    environment:
+      NODE_ENV: development
+      DATABASE_URL: postgres://chatosnova:barsikchat-dev-only@postgres:5432/chatosnova_dev
+      APP_ORIGIN: http://127.0.0.1:3100
+      AI_ENABLED: ${AI_ENABLED:-true}
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      AI_MONTHLY_BUDGET_USD: ${AI_MONTHLY_BUDGET_USD:-5}
+    volumes:
+      - .:/app
+      - barsikchat_dev_node_modules:/app/node_modules
+
   postgres:
-    image: postgres:17-alpine
+    image: pgvector/pgvector:pg17
     restart: unless-stopped
     environment:
       POSTGRES_DB: chatosnova_dev
@@ -41,13 +64,41 @@ services:
       POSTGRES_PASSWORD: barsikchat-dev-only
     volumes:
       - barsikchat_dev_postgres:/var/lib/postgresql/data
+      - barsikchat_dev_backups:/backups:ro
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U chatosnova -d chatosnova_dev"]
       interval: 5s
       timeout: 5s
       retries: 12
 
+  backup:
+    image: postgres:17-alpine
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      PGHOST: postgres
+      PGDATABASE: chatosnova_dev
+      PGUSER: chatosnova
+      PGPASSWORD: barsikchat-dev-only
+    command:
+      - /bin/sh
+      - -ec
+      - |
+        while true; do
+          stamp="$$(date -u +%Y%m%dT%H%M%SZ)"
+          pg_dump --format=custom --file="/backups/db-$${stamp}.dump"
+          tar -czf "/backups/files-$${stamp}.tar.gz" -C /data .
+          find /backups -type f -mtime +7 -delete
+          sleep 86400
+        done
+    volumes:
+      - barsikchat_dev_data:/data:ro
+      - barsikchat_dev_backups:/backups
+
 volumes:
   barsikchat_dev_node_modules:
   barsikchat_dev_data:
   barsikchat_dev_postgres:
+  barsikchat_dev_backups:

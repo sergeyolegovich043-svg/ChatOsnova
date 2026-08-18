@@ -32,6 +32,7 @@ import {
   onlineUserIds
 } from "./realtime.js";
 import { isAllowedOrigin, isSafePushEndpoint } from "./security.js";
+import { createAiRouter } from "./routes/ai.js";
 
 const app = express();
 const server = createServer(app);
@@ -65,7 +66,6 @@ app.use("/api", (_request, response, next) => {
 
 app.use((request, response, next) => {
   if (
-    config.isProduction &&
     ["POST", "PUT", "PATCH", "DELETE"].includes(request.method) &&
     request.path.startsWith("/api/")
   ) {
@@ -95,6 +95,9 @@ const apiLimiter = rateLimit({
 });
 
 app.use("/api", apiLimiter);
+
+// AI is intentionally absent from the production route graph during the pilot.
+if (config.ai.availableInEnvironment) app.use("/api/ai", createAiRouter());
 
 const registerSchema = z.object({
   email: z.string().trim().email().max(254),
@@ -1539,6 +1542,17 @@ app.post("/api/uploads", requireAuth, upload.array("files", 5), async (request, 
     if (hasBlockedMime) {
       await Promise.all(files.map((file) => fs.unlink(file.path).catch(() => undefined)));
       response.status(415).json({ error: "Этот тип файла запрещён из соображений безопасности" });
+      return;
+    }
+    const storage = await query<{ bytes: string }>(
+      "SELECT COALESCE(sum(size_bytes), 0)::text AS bytes FROM attachments WHERE uploaded_by = $1",
+      [authRequest(request).user.id]
+    );
+    const incomingBytes = files.reduce((total, file) => total + file.size, 0);
+    const quotaBytes = config.maxUserStorageMb * 1024 * 1024;
+    if (Number(storage.rows[0]?.bytes ?? 0) + incomingBytes > quotaBytes) {
+      await Promise.all(files.map((file) => fs.unlink(file.path).catch(() => undefined)));
+      response.status(413).json({ error: `Личная квота файлов ${config.maxUserStorageMb} МБ исчерпана` });
       return;
     }
     const uploaded = [];

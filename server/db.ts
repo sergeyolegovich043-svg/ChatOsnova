@@ -39,17 +39,23 @@ export async function runMigrations() {
   `);
 
   const migrationsDir = path.resolve(process.cwd(), "migrations");
-  const files = (await fs.readdir(migrationsDir)).filter((file) => file.endsWith(".sql")).sort();
+  const files = (await fs.readdir(migrationsDir))
+    .filter((file) => file.endsWith(".sql"))
+    .filter((file) => !config.isProduction || !file.includes("_dev_ai_"))
+    .sort();
 
   for (const file of files) {
-    const alreadyApplied = await pool.query("SELECT 1 FROM schema_migrations WHERE name = $1", [file]);
-    if (alreadyApplied.rowCount) continue;
-
     const sql = await fs.readFile(path.join(migrationsDir, file), "utf8");
-    await transaction(async (client) => {
+    const applied = await transaction(async (client) => {
+      // The web process and outbox worker can start together. Serialize each
+      // migration so both processes never execute the same SQL concurrently.
+      await client.query("SELECT pg_advisory_xact_lock(hashtext($1))", [`barsikchat:migration:${file}`]);
+      const alreadyApplied = await client.query("SELECT 1 FROM schema_migrations WHERE name = $1", [file]);
+      if (alreadyApplied.rowCount) return false;
       await client.query(sql);
       await client.query("INSERT INTO schema_migrations (name) VALUES ($1)", [file]);
+      return true;
     });
-    console.info(`Applied migration ${file}`);
+    if (applied) console.info(`Applied migration ${file}`);
   }
 }

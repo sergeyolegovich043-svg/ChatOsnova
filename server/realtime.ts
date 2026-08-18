@@ -11,13 +11,7 @@ const onlineConnections = new Map<string, number>();
 export function createRealtimeServer(server: HttpServer) {
   io = new Server(server, {
     cors: config.isProduction ? undefined : { origin: config.appOrigin, credentials: true },
-    allowRequest: (request, callback) => {
-      if (!config.isProduction) {
-        callback(null, true);
-        return;
-      }
-      callback(null, isAllowedOrigin(request.headers.origin, config.appOrigin));
-    }
+    allowRequest: (request, callback) => callback(null, isAllowedOrigin(request.headers.origin, config.appOrigin))
   });
 
   io.use(async (socket, next) => {

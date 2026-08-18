@@ -9,13 +9,17 @@
     "dev:stack": "docker compose -p barsikchat-dev -f compose.dev.yml up",
     "dev:stack:down": "docker compose -p barsikchat-dev -f compose.dev.yml down",
     "dev:server": "tsx watch server/index.ts",
+    "dev:worker": "tsx watch server/worker.ts",
     "dev:web": "vite --host 0.0.0.0",
     "build": "npm run build:web && npm run build:server",
     "build:web": "vite build",
     "build:server": "tsc -p tsconfig.server.json",
     "start": "node dist-server/index.js",
+    "start:worker": "node dist-server/worker.js",
     "test": "vitest run",
     "smoke": "node scripts/smoke.mjs",
+    "smoke:ai": "node scripts/ai-smoke.mjs",
+    "backup:verify": "node scripts/verify-dev-restore.mjs",
     "typecheck": "tsc --noEmit && tsc -p tsconfig.server.json --noEmit"
   },
   "engines": {

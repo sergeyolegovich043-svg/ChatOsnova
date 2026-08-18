@@ -5,7 +5,7 @@ import {
   type CSSProperties,
   type PointerEvent as ReactPointerEvent
 } from "react";
-import { EyeSlash, PawPrint } from "@phosphor-icons/react";
+import { EyeSlash, PawPrint, Sparkle } from "@phosphor-icons/react";
 import {
   clampPetPosition,
   dragPetPosition,
@@ -25,6 +25,7 @@ type PetCompanionProps = {
   activity: PetActivity | null;
   notification: PetNotification | null;
   onOpenConversation: (conversationId: string) => void;
+  onOpenAssistant: () => void;
   onDisable: () => void;
 };
 
@@ -112,7 +113,7 @@ function initialPosition(): PetPosition {
   return fallback;
 }
 
-export function PetCompanion({ activity, notification, onOpenConversation, onDisable }: PetCompanionProps) {
+export function PetCompanion({ activity, notification, onOpenConversation, onOpenAssistant, onDisable }: PetCompanionProps) {
   const [position, setPosition] = useState(initialPosition);
   const [idleFrame, setIdleFrame] = useState(0);
   const [notificationFrame, setNotificationFrame] = useState(0);
@@ -394,6 +395,7 @@ export function PetCompanion({ activity, notification, onOpenConversation, onDis
       )}
       {menuOpen && (
         <div className={`pet-menu ${alignRight ? "align-right" : "align-left"}`} role="menu" onPointerDown={(event) => event.stopPropagation()}>
+          <button type="button" role="menuitem" onClick={() => { setMenuOpen(false); onOpenAssistant(); }}><Sparkle size={16} weight="fill" /> Спросить Барсика</button>
           <button type="button" role="menuitem" onClick={greet}><PawPrint size={16} weight="fill" /> Погладить</button>
           <button type="button" role="menuitem" className="danger" onClick={onDisable}><EyeSlash size={16} /> Спрятать</button>
         </div>
