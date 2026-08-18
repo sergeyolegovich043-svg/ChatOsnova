@@ -1,4 +1,5 @@
 import {
+  useCallback,
   useEffect,
   useRef,
   useState,
@@ -12,18 +13,27 @@ import {
   PET_ACTIVITY_EVENT,
   PET_LEGACY_X_POSITION_KEY,
   PET_POSITION_KEY,
+  readPetOnboardingSeen,
+  savePetOnboardingSeen,
+  shouldAnimateUnreadStack,
   type PetActivity,
   type PetNotification,
-  type PetPosition
+  type PetPosition,
+  type PetReaction
 } from "../pet";
 import petIdleUrl from "../assets/pet-states/barsik-metallica-idle-v2.png";
 import petNotificationUrl from "../assets/pet-states/barsik-metallica-notification-v1.png";
+import petOnboardingUrl from "../assets/pet-states/barsik-metallica-onboarding-v1.png";
+import petReplyUrl from "../assets/pet-states/barsik-metallica-reply-v1.png";
 import petSearchUrl from "../assets/pet-states/barsik-metallica-search-v1.png";
+import petUnreadStackUrl from "../assets/pet-states/barsik-metallica-unread-stack-v1.png";
 import "../pet.css";
 
 type PetCompanionProps = {
   activity: PetActivity | null;
   notification: PetNotification | null;
+  reaction: PetReaction | null;
+  unreadCount: number;
   onOpenConversation: (conversationId: string) => void;
   onDisable: () => void;
 };
@@ -39,6 +49,7 @@ const MOBILE_BREAKPOINT = 720;
 const IDLE_FRAME_POSITIONS = ["0%", "25%", "50%", "75%", "100%"];
 const NOTIFICATION_FRAME_POSITIONS = ["0%", "25%", "50%", "75%", "100%"];
 const SEARCH_FRAME_POSITIONS = ["0%", "25%", "50%", "75%", "100%"];
+const REACTION_FRAME_POSITIONS = ["0%", "25%", "50%", "75%", "100%"];
 const SEARCH_SEQUENCE = [0, 1, 2, 3, 2, 1];
 const MIN_SEARCH_VISIBLE_MS = 1_600;
 const SEARCH_FOUND_VISIBLE_MS = 720;
@@ -60,6 +71,29 @@ const IDLE_SEQUENCE = [
   { frame: 3, duration: 520 },
   { frame: 1, duration: 440 }
 ];
+const REACTION_SEQUENCES: Record<PetReaction["type"], Array<{ frame: number; duration: number }>> = {
+  onboarding: [
+    { frame: 0, duration: 420 },
+    { frame: 1, duration: 340 },
+    { frame: 2, duration: 360 },
+    { frame: 3, duration: 420 },
+    { frame: 4, duration: 900 }
+  ],
+  "unread-stack": [
+    { frame: 0, duration: 280 },
+    { frame: 1, duration: 320 },
+    { frame: 2, duration: 360 },
+    { frame: 3, duration: 440 },
+    { frame: 4, duration: 900 }
+  ],
+  reply: [
+    { frame: 0, duration: 260 },
+    { frame: 1, duration: 280 },
+    { frame: 2, duration: 300 },
+    { frame: 3, duration: 340 },
+    { frame: 4, duration: 820 }
+  ]
+};
 
 function petSize(viewportWidth: number) {
   return viewportWidth <= MOBILE_BREAKPOINT
@@ -112,13 +146,16 @@ function initialPosition(): PetPosition {
   return fallback;
 }
 
-export function PetCompanion({ activity, notification, onOpenConversation, onDisable }: PetCompanionProps) {
+export function PetCompanion({ activity, notification, reaction, unreadCount, onOpenConversation, onDisable }: PetCompanionProps) {
   const [position, setPosition] = useState(initialPosition);
   const [idleFrame, setIdleFrame] = useState(0);
   const [notificationFrame, setNotificationFrame] = useState(0);
   const [searchFrame, setSearchFrame] = useState(0);
   const [searchStage, setSearchStage] = useState<PetSearchStage>("idle");
   const [searchLabel, setSearchLabel] = useState("Ищу и анализирую");
+  const [reactionFrame, setReactionFrame] = useState(0);
+  const [reactionQueue, setReactionQueue] = useState<PetReaction[]>([]);
+  const [activeReaction, setActiveReaction] = useState<PetReaction | null>(null);
   const [externalActivity, setExternalActivity] = useState<PetActivity | null>(null);
   const [mode, setMode] = useState<PetMode>("sit");
   const [visibleNotification, setVisibleNotification] = useState<PetNotification | null>(null);
@@ -128,13 +165,77 @@ export function PetCompanion({ activity, notification, onOpenConversation, onDis
   const [dragging, setDragging] = useState(false);
   const positionRef = useRef(position);
   const searchStartedAtRef = useRef(0);
+  const previousUnreadCountRef = useRef(0);
+  const queuedReactionIdsRef = useRef(new Set<string>());
   const dragRef = useRef({ startPointerX: 0, startPointerY: 0, startPetX: 0, startPetY: 0, moved: false });
   const currentActivity = activity ?? externalActivity;
-  const visualMode = mode !== "sit"
+  const visualMode = activeReaction?.type ?? (mode !== "sit"
     ? mode
     : searchStage === "idle"
       ? "sit"
-      : searchStage;
+      : searchStage);
+
+  const enqueueReaction = useCallback((nextReaction: PetReaction) => {
+    if (queuedReactionIdsRef.current.has(nextReaction.id)) return;
+    queuedReactionIdsRef.current.add(nextReaction.id);
+    setReactionQueue((current) => [...current, nextReaction]);
+  }, []);
+
+  useEffect(() => {
+    if (readPetOnboardingSeen()) return;
+    savePetOnboardingSeen();
+    setGreetingVisible(false);
+    enqueueReaction({ id: "onboarding-v1", type: "onboarding" });
+  }, [enqueueReaction]);
+
+  useEffect(() => {
+    const previousCount = previousUnreadCountRef.current;
+    previousUnreadCountRef.current = unreadCount;
+    if (!shouldAnimateUnreadStack(previousCount, unreadCount)) return;
+    setGreetingVisible(false);
+    enqueueReaction({ id: `unread-stack:${Date.now()}`, type: "unread-stack" });
+  }, [enqueueReaction, unreadCount]);
+
+  useEffect(() => {
+    if (!reaction) return;
+    setGreetingVisible(false);
+    enqueueReaction(reaction);
+  }, [enqueueReaction, reaction]);
+
+  useEffect(() => {
+    if (activeReaction || reactionQueue.length === 0) return;
+    setActiveReaction(reactionQueue[0]);
+    setReactionQueue((current) => current.slice(1));
+  }, [activeReaction, reactionQueue]);
+
+  useEffect(() => {
+    if (!activeReaction) return;
+    const sequence = REACTION_SEQUENCES[activeReaction.type];
+    let sequenceIndex = 0;
+    let timer = 0;
+    setReactionFrame(sequence[0].frame);
+
+    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+      setReactionFrame(sequence.at(-1)?.frame ?? 4);
+      timer = window.setTimeout(() => setActiveReaction(null), 1_000);
+      return () => window.clearTimeout(timer);
+    }
+
+    const advance = () => {
+      timer = window.setTimeout(() => {
+        sequenceIndex += 1;
+        if (sequenceIndex >= sequence.length) {
+          setActiveReaction(null);
+          return;
+        }
+        setReactionFrame(sequence[sequenceIndex].frame);
+        advance();
+      }, sequence[sequenceIndex].duration);
+    };
+    advance();
+
+    return () => window.clearTimeout(timer);
+  }, [activeReaction]);
 
   useEffect(() => {
     const handleActivity = (event: Event) => {
@@ -352,7 +453,11 @@ export function PetCompanion({ activity, notification, onOpenConversation, onDis
     "--pet-notification": `url("${petNotificationUrl}")`,
     "--pet-notification-frame": NOTIFICATION_FRAME_POSITIONS[notificationFrame],
     "--pet-search": `url("${petSearchUrl}")`,
-    "--pet-search-frame": SEARCH_FRAME_POSITIONS[searchFrame]
+    "--pet-search-frame": SEARCH_FRAME_POSITIONS[searchFrame],
+    "--pet-onboarding": `url("${petOnboardingUrl}")`,
+    "--pet-unread-stack": `url("${petUnreadStackUrl}")`,
+    "--pet-reply": `url("${petReplyUrl}")`,
+    "--pet-reaction-frame": REACTION_FRAME_POSITIONS[reactionFrame]
   } as CSSProperties;
   const alignRight = position.x > (typeof window === "undefined" ? 640 : window.innerWidth / 2);
   const placeBubbleBelow = position.y < 96;
@@ -362,7 +467,14 @@ export function PetCompanion({ activity, notification, onOpenConversation, onDis
       className={`pet-companion pet-${visualMode} ${dragging ? "is-dragging" : ""} ${placeBubbleBelow ? "pet-bubble-below" : ""}`}
       style={{ left: position.x, top: position.y }}
       data-mode={visualMode}
-      aria-label={visualMode === "searching" ? `Барсик: ${searchLabel}` : visualMode === "found" ? "Барсик нашёл результат" : "Питомец Барсик"}
+      aria-label={
+        visualMode === "searching" ? `Барсик: ${searchLabel}`
+          : visualMode === "found" ? "Барсик нашёл результат"
+            : visualMode === "onboarding" ? "Барсик приветствует пользователя"
+              : visualMode === "unread-stack" ? "Барсик собирает непрочитанные сообщения"
+                : visualMode === "reply" ? "Барсик показывает ответ на сообщение"
+                  : "Питомец Барсик"
+      }
     >
       {visibleNotification && (
         <button
@@ -416,6 +528,9 @@ export function PetCompanion({ activity, notification, onOpenConversation, onDis
         <span className="pet-idle-sprite" aria-hidden="true" />
         <span className="pet-notification-sprite" aria-hidden="true" />
         <span className="pet-search-sprite" aria-hidden="true" />
+        <span className="pet-reaction-sprite pet-onboarding-sprite" aria-hidden="true" />
+        <span className="pet-reaction-sprite pet-unread-stack-sprite" aria-hidden="true" />
+        <span className="pet-reaction-sprite pet-reply-sprite" aria-hidden="true" />
       </button>
       <span className="pet-ground-shadow" aria-hidden="true" />
     </aside>

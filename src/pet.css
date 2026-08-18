@@ -49,7 +49,8 @@
 }
 
 .pet-search-sprite,
-.pet-notification-sprite {
+.pet-notification-sprite,
+.pet-reaction-sprite {
   position: absolute;
   inset: 0;
   display: none;
@@ -70,16 +71,38 @@
   background-position: var(--pet-notification-frame) center;
 }
 
+.pet-onboarding-sprite {
+  background-image: var(--pet-onboarding);
+  background-position: var(--pet-reaction-frame) center;
+}
+
+.pet-unread-stack-sprite {
+  background-image: var(--pet-unread-stack);
+  background-position: var(--pet-reaction-frame) center;
+}
+
+.pet-reply-sprite {
+  background-image: var(--pet-reply);
+  background-position: var(--pet-reaction-frame) center;
+}
+
 .pet-searching .pet-idle-sprite,
 .pet-found .pet-idle-sprite,
-.pet-notifying .pet-idle-sprite { display: none; }
+.pet-notifying .pet-idle-sprite,
+.pet-onboarding .pet-idle-sprite,
+.pet-unread-stack .pet-idle-sprite,
+.pet-reply .pet-idle-sprite { display: none; }
 .pet-searching .pet-search-sprite,
 .pet-found .pet-search-sprite { display: block; }
 .pet-notifying .pet-notification-sprite { display: block; }
+.pet-onboarding .pet-onboarding-sprite,
+.pet-unread-stack .pet-unread-stack-sprite,
+.pet-reply .pet-reply-sprite { display: block; }
 
 .pet-sprite-button:hover .pet-idle-sprite,
 .pet-sprite-button:hover .pet-search-sprite,
-.pet-sprite-button:hover .pet-notification-sprite { filter: brightness(1.08) saturate(1.06); }
+.pet-sprite-button:hover .pet-notification-sprite,
+.pet-sprite-button:hover .pet-reaction-sprite { filter: brightness(1.08) saturate(1.06); }
 
 .pet-ground-shadow {
   position: absolute;
@@ -282,6 +305,7 @@
   .pet-idle-sprite,
   .pet-search-sprite,
   .pet-notification-sprite,
+  .pet-reaction-sprite,
   .pet-ground-shadow,
   .pet-activity-dot { animation: none !important; }
   .pet-companion { transition: none; }

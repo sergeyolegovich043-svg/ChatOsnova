@@ -1,7 +1,9 @@
 export const PET_ENABLED_KEY = "barsikchat.pet.enabled";
 export const PET_POSITION_KEY = "barsikchat.pet.position";
 export const PET_LEGACY_X_POSITION_KEY = "barsikchat.pet.position-x";
+export const PET_ONBOARDING_SEEN_KEY = "barsikchat.pet.onboarding-v1-seen";
 export const PET_ACTIVITY_EVENT = "barsikchat:pet-activity";
+export const PET_UNREAD_STACK_THRESHOLD = 5;
 
 export type PetPosition = {
   x: number;
@@ -20,6 +22,11 @@ export type PetNotification = {
   title: string;
   subtitle: string;
   body: string;
+};
+
+export type PetReaction = {
+  id: string;
+  type: "onboarding" | "unread-stack" | "reply";
 };
 
 type NativePetBridge = {
@@ -50,6 +57,28 @@ export function savePetEnabled(enabled: boolean, storage: Pick<Storage, "setItem
   } catch {
     // The preference remains active for the current session when storage is blocked.
   }
+}
+
+export function readPetOnboardingSeen(storage: Pick<Storage, "getItem"> | null = safeStorage()) {
+  if (!storage) return false;
+  try {
+    return storage.getItem(PET_ONBOARDING_SEEN_KEY) === "1";
+  } catch {
+    return false;
+  }
+}
+
+export function savePetOnboardingSeen(storage: Pick<Storage, "setItem"> | null = safeStorage()) {
+  if (!storage) return;
+  try {
+    storage.setItem(PET_ONBOARDING_SEEN_KEY, "1");
+  } catch {
+    // The welcome animation may repeat on the next launch when storage is blocked.
+  }
+}
+
+export function shouldAnimateUnreadStack(previousCount: number, nextCount: number, threshold = PET_UNREAD_STACK_THRESHOLD) {
+  return previousCount < threshold && nextCount >= threshold;
 }
 
 export function clampPetX(value: number, viewportWidth: number, petWidth = 148) {

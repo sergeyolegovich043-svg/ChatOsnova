@@ -59,7 +59,8 @@ import {
   syncNativePetActivity,
   syncNativePet,
   type PetActivity,
-  type PetNotification
+  type PetNotification,
+  type PetReaction
 } from "../pet";
 import type { Attachment, ChatFolder, ColorTheme, Conversation, Member, Message, MessageSearchResult, User } from "../types";
 import type { RecordedMediaKind } from "../media";
@@ -249,6 +250,7 @@ export function Messenger({ user, setUser, onLogout, canInstall, installApp, the
   const [messagePopups, setMessagePopups] = useState<MessagePopup[]>([]);
   const [petEnabled, setPetEnabled] = useState(() => readPetEnabled(featureFlags.petCompanion));
   const [petNotification, setPetNotification] = useState<PetNotification | null>(null);
+  const [petReaction, setPetReaction] = useState<PetReaction | null>(null);
   const socketRef = useRef<Socket | null>(null);
   const activeIdRef = useRef<string | null>(activeId);
   const conversationsRef = useRef<Conversation[]>([]);
@@ -257,12 +259,14 @@ export function Messenger({ user, setUser, onLogout, canInstall, installApp, the
   const messagesEndRef = useRef<HTMLDivElement | null>(null);
   const globalSearchInputRef = useRef<HTMLInputElement | null>(null);
   const petEnabledRef = useRef(petEnabled);
+  const petReactionTimerRef = useRef(0);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const inputRef = useRef<HTMLTextAreaElement | null>(null);
   const typingTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const activeConversation = conversations.find((conversation) => conversation.id === activeId) ?? null;
   const activeMessages = activeId ? messages[activeId] ?? [] : [];
+  const totalUnreadCount = useMemo(() => conversations.reduce((total, conversation) => total + conversation.unreadCount, 0), [conversations]);
   const petActivity: PetActivity | null = globalSearchLoading
     ? { type: "searching", source: "messages", label: "Ищу по перепискам" }
     : null;
@@ -279,7 +283,10 @@ export function Messenger({ user, setUser, onLogout, canInstall, installApp, the
     petEnabledRef.current = petEnabled;
     savePetEnabled(petEnabled);
     void syncNativePet(petEnabled);
-    if (!petEnabled) setPetNotification(null);
+    if (!petEnabled) {
+      setPetNotification(null);
+      setPetReaction(null);
+    }
   }, [petEnabled]);
 
   useEffect(() => {
@@ -293,6 +300,14 @@ export function Messenger({ user, setUser, onLogout, canInstall, installApp, the
   useEffect(() => () => {
     popupTimersRef.current.forEach((timer) => window.clearTimeout(timer));
     popupTimersRef.current.clear();
+    window.clearTimeout(petReactionTimerRef.current);
+  }, []);
+
+  const triggerPetReaction = useCallback((nextReaction: PetReaction) => {
+    if (!featureFlags.petCompanion || !petEnabledRef.current) return;
+    window.clearTimeout(petReactionTimerRef.current);
+    setPetReaction(nextReaction);
+    petReactionTimerRef.current = window.setTimeout(() => setPetReaction(null), 5_000);
   }, []);
 
   const showToast = useCallback((message: string) => {
@@ -394,6 +409,9 @@ export function Messenger({ user, setUser, onLogout, canInstall, installApp, the
         && document.visibilityState === "visible"
         && document.hasFocus();
       const conversationAtArrival = conversationsRef.current.find((conversation) => conversation.id === message.conversationId);
+      if (!isOwnMessage && message.reply?.senderId === user.id) {
+        triggerPetReaction({ id: `incoming-reply:${message.id}`, type: "reply" });
+      }
       setMessages((current) => ({
         ...current,
         [message.conversationId]: upsertMessage(current[message.conversationId] ?? [], message)
@@ -548,7 +566,7 @@ export function Messenger({ user, setUser, onLogout, canInstall, installApp, the
       socket.disconnect();
       socketRef.current = null;
     };
-  }, [loadConversations, markConversationRead, queueMessagePopup, user.id]);
+  }, [loadConversations, markConversationRead, queueMessagePopup, triggerPetReaction, user.id]);
 
   useEffect(() => {
     const readVisibleConversation = () => {
@@ -999,6 +1017,14 @@ export function Messenger({ user, setUser, onLogout, canInstall, installApp, the
     setReplyTo(null);
     setDraft(message.body);
     setAttachments(message.attachments);
+    inputRef.current?.focus();
+  }
+
+  function beginReply(message: Message) {
+    setMessageMenu(null);
+    setReplyTo(message);
+    setEditing(null);
+    triggerPetReaction({ id: `compose-reply:${message.id}:${Date.now()}`, type: "reply" });
     inputRef.current?.focus();
   }
 
@@ -1584,7 +1610,7 @@ export function Messenger({ user, setUser, onLogout, canInstall, installApp, the
                               style={{ left: messageMenu.x, top: messageMenu.y }}
                             >
                               <button type="button" role="menuitem" onClick={() => { setMessageMenu(null); setReactionPickerFor(message.id); }}><SmilePlus size={19} weight="regular" /><span>Добавить реакцию</span></button>
-                              <button type="button" role="menuitem" onClick={() => { setMessageMenu(null); setReplyTo(message); setEditing(null); inputRef.current?.focus(); }}><Reply size={19} weight="regular" /><span>Ответить</span></button>
+                              <button type="button" role="menuitem" onClick={() => beginReply(message)}><Reply size={19} weight="regular" /><span>Ответить</span></button>
                               <button type="button" role="menuitem" onClick={() => { setMessageMenu(null); setForwardingMessages([message]); }}><Forward size={19} weight="regular" /><span>Переслать</span></button>
                               <button type="button" role="menuitem" onClick={() => { setMessageMenu(null); void copyMessageText([message]); }}><Copy size={19} /><span>Копировать текст</span></button>
                               <button type="button" role="menuitem" onClick={() => { setMessageMenu(null); void copyMessageLink(message); }}><LinkSimple size={19} /><span>Копировать ссылку</span></button>
@@ -1778,6 +1804,8 @@ export function Messenger({ user, setUser, onLogout, canInstall, installApp, the
           <PetCompanion
             activity={petActivity}
             notification={petNotification}
+            reaction={petReaction}
+            unreadCount={totalUnreadCount}
             onOpenConversation={openConversation}
             onDisable={() => setPetEnabled(false)}
           />
