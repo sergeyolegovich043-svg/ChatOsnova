@@ -1,0 +1,11 @@
+node_modules/
+dist/
+dist-server/
+.env*
+!.env.example
+.gradle/
+legacy-android/app/build/
+data/
+uploads/
+*.log
+.DS_Store

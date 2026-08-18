@@ -1,0 +1,53 @@
+services:
+  app:
+    image: node:22-alpine
+    working_dir: /app
+    command: sh -c "npm ci && npm run dev"
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      NODE_ENV: development
+      PORT: 3101
+      DATABASE_URL: postgres://chatosnova:barsikchat-dev-only@postgres:5432/chatosnova_dev
+      APP_ORIGIN: http://127.0.0.1:3100
+      SESSION_DAYS: 7
+      MAX_USERS: 100
+      MAX_UPLOAD_MB: 50
+      DATA_DIR: /app/data-dev
+      CHOKIDAR_USEPOLLING: "true"
+      VITE_APP_ENV: development
+      VITE_ENABLE_PET: "true"
+      VITE_DEV_API_TARGET: http://127.0.0.1:3101
+    ports:
+      - "127.0.0.1:3100:5173"
+    volumes:
+      - .:/app
+      - barsikchat_dev_node_modules:/app/node_modules
+      - barsikchat_dev_data:/app/data-dev
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:3101/api/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+
+  postgres:
+    image: postgres:17-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: chatosnova_dev
+      POSTGRES_USER: chatosnova
+      POSTGRES_PASSWORD: barsikchat-dev-only
+    volumes:
+      - barsikchat_dev_postgres:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U chatosnova -d chatosnova_dev"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+
+volumes:
+  barsikchat_dev_node_modules:
+  barsikchat_dev_data:
+  barsikchat_dev_postgres:

@@ -1,0 +1,9 @@
+:80 {
+    encode zstd gzip
+
+    request_body {
+        max_size 55MB
+    }
+
+    reverse_proxy app:3000
+}
