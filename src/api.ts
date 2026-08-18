@@ -9,7 +9,7 @@ import type {
   NotificationMode,
   User
 } from "./types";
-import type { AiMode, AiStreamEvent } from "./types";
+import type { AiDraftStyle, AiMode, AiNotificationGroup, AiPersonalTask, AiStreamEvent } from "./types";
 
 export class ApiError extends Error {
   status: number;
@@ -197,9 +197,47 @@ export const api = {
       method: "POST",
       body: JSON.stringify(subscription)
     }),
-  aiStatus: () => request<{ enabled: boolean; readOnly: boolean; model: string | null; reason: string | null }>("/api/ai/status"),
+  aiStatus: () => request<{
+    enabled: boolean;
+    readOnly: boolean;
+    model: string | null;
+    reason: string | null;
+    capabilities: string[];
+    confirmationRequired: string[];
+  }>("/api/ai/status"),
+  aiTasks: (status?: AiPersonalTask["status"]) =>
+    request<{ tasks: AiPersonalTask[] }>(`/api/ai/tasks${status ? `?status=${status}` : ""}`),
+  createAiTask: (input: {
+    clientId: string;
+    conversationId?: string;
+    sourceMessageId?: string;
+    title: string;
+    details?: string;
+    assignee?: string | null;
+    dueAt?: string | null;
+  }) => request<{ task: AiPersonalTask }>("/api/ai/tasks", { method: "POST", body: JSON.stringify(input) }),
+  updateAiTask: (taskId: string, status: AiPersonalTask["status"]) =>
+    request<{ task: AiPersonalTask }>(`/api/ai/tasks/${taskId}`, {
+      method: "PATCH",
+      body: JSON.stringify({ status })
+    }),
+  deleteAiTask: (taskId: string) => request<void>(`/api/ai/tasks/${taskId}`, { method: "DELETE" }),
+  pendingAiNotifications: (since?: string) =>
+    request<{ groups: AiNotificationGroup[] }>(`/api/ai/notifications/pending${since ? `?since=${encodeURIComponent(since)}` : ""}`),
+  acknowledgeAiNotifications: (input: { conversationId?: string; messageIds?: string[] }) =>
+    request<{ acknowledged: number }>("/api/ai/notifications/ack", {
+      method: "POST",
+      body: JSON.stringify(input)
+    }),
   streamAi: async (
-    input: { mode: AiMode; prompt: string; conversationId?: string },
+    input: {
+      mode: AiMode;
+      prompt?: string;
+      conversationId?: string;
+      scope?: "conversation" | "day";
+      since?: string;
+      draftStyle?: AiDraftStyle;
+    },
     onEvent: (event: AiStreamEvent) => void,
     signal?: AbortSignal
   ) => {

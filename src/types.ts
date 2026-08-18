@@ -140,7 +140,8 @@ export type MessageSearchResult = {
   conversation: Conversation;
 };
 
-export type AiMode = "search" | "summary" | "draft";
+export type AiMode = "search" | "summary" | "catchup" | "draft" | "tasks" | "notification";
+export type AiDraftStyle = "short" | "formal" | "friendly" | "detailed";
 
 export type AiCitation = {
   sourceId: string;
@@ -150,6 +151,56 @@ export type AiCitation = {
 export type AiAnswer = {
   answer: string;
   citations: AiCitation[];
+  highlights: string[];
+  decisions: string[];
+  questions: string[];
+  deadlines: Array<{
+    text: string;
+    assignee: string | null;
+    dueAt: string | null;
+    sourceId: string | null;
+  }>;
+  tasks: Array<{
+    title: string;
+    details: string;
+    assignee: string | null;
+    dueAt: string | null;
+    sourceId: string | null;
+  }>;
+  draft: string | null;
+  notification: {
+    title: string;
+    body: string;
+    priority: "normal" | "important" | "urgent";
+    mentionsUser: boolean;
+    actionRequired: boolean;
+  } | null;
+};
+
+export type AiPersonalTask = {
+  id: string;
+  clientId: string;
+  conversationId: string | null;
+  sourceMessageId: string | null;
+  title: string;
+  details: string;
+  assignee: string | null;
+  dueAt: string | null;
+  status: "open" | "done" | "dismissed";
+  createdAt: string;
+  updatedAt: string;
+  completedAt: string | null;
+};
+
+export type AiNotificationGroup = {
+  conversationId: string;
+  title: string;
+  messageCount: number;
+  mentionCount: number;
+  needsAttention: boolean;
+  latestAt: string;
+  latestMessageId: string;
+  preview: string;
 };
 
 export type AiStreamEvent =

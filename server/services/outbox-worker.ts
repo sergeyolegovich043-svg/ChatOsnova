@@ -5,10 +5,12 @@ import {
   deleteAiConversation,
   deleteAiSource,
   deleteAiUserConversation,
+  enqueueAiNotifications,
   findChunksMissingEmbeddings,
   isIndexableMessage,
   readIndexableAttachment,
   readIndexableMessage,
+  removeAiNotificationsForMessage,
   saveEmbedding,
   upsertAiChunk
 } from "../repositories/ai.js";
@@ -24,20 +26,28 @@ async function embedChunk(chunkId: string, content: string) {
 
 async function processMessage(event: OutboxEvent) {
   const message = await readIndexableMessage(event.aggregateId);
-  if (event.eventType === "message.deleted" || !isIndexableMessage(message) || !message?.body.trim()) {
+  if (event.eventType === "message.deleted" || !isIndexableMessage(message) || !message) {
     await deleteAiSource("message", event.aggregateId);
+    await removeAiNotificationsForMessage(event.aggregateId);
     return;
   }
+  // Notification grouping is deterministic and must keep working even if the
+  // external embedding provider is unavailable.
+  await enqueueAiNotifications(message.id);
   const content = message.body.trim().slice(0, 8_000);
-  const chunkId = await upsertAiChunk({
-    conversationId: message.conversationId,
-    sourceKind: "message",
-    sourceId: message.id,
-    sourceMessageId: message.id,
-    private: message.conversationKind === "direct",
-    content
-  });
-  await embedChunk(chunkId, content);
+  if (content) {
+    const chunkId = await upsertAiChunk({
+      conversationId: message.conversationId,
+      sourceKind: "message",
+      sourceId: message.id,
+      sourceMessageId: message.id,
+      private: message.conversationKind === "direct",
+      content
+    });
+    await embedChunk(chunkId, content);
+  } else {
+    await deleteAiSource("message", event.aggregateId);
+  }
 }
 
 async function processAttachment(event: OutboxEvent) {

@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
 
 const baseUrl = process.env.SMOKE_URL ?? "http://127.0.0.1:3000";
+const origin = process.env.SMOKE_ORIGIN ?? baseUrl;
 const suffix = Date.now().toString(36);
 
 function cookieFrom(response) {
@@ -12,7 +13,7 @@ async function request(path, { cookie, method = "GET", body } = {}) {
   const response = await fetch(`${baseUrl}${path}`, {
     method,
     headers: {
-      Origin: baseUrl,
+      Origin: origin,
       ...(cookie ? { Cookie: cookie } : {}),
       ...(body ? { "Content-Type": "application/json" } : {})
     },
@@ -70,6 +71,13 @@ try {
     const result = await query("SELECT 1 FROM ai_chunks WHERE source_message_id = $1", [sent.payload.message.id]);
     return Boolean(result.rowCount);
   }, "message indexing");
+  await waitFor(async () => {
+    const result = await query(
+      "SELECT 1 FROM ai_notification_queue WHERE user_id = $1 AND message_id = $2 AND consumed_at IS NULL",
+      [bob.payload.user.id, sent.payload.message.id]
+    );
+    return Boolean(result.rowCount);
+  }, "smart notification queue");
 
   const ownDirect = await findAccessibleChunks({
     userId: alice.payload.user.id,
@@ -85,6 +93,56 @@ try {
   assert.equal(ownDirect.length, 1, "member must see an explicitly selected direct chat");
   assert.equal(foreignDirect.length, 0, "non-member must never see a foreign direct chat");
   assert.equal(privateGlobal.length, 0, "direct messages must not enter global knowledge search");
+
+  const pending = await request("/api/ai/notifications/pending", { cookie: bob.cookie });
+  assert.equal(pending.payload.groups.length, 1, "recipient must get one aggregated conversation notification");
+  assert.equal(pending.payload.groups[0].messageCount, 1, "aggregated notification must count source messages");
+
+  const taskClientId = randomUUID();
+  const taskInput = {
+    clientId: taskClientId,
+    conversationId,
+    sourceMessageId: sent.payload.message.id,
+    title: "Проверить срок релиза",
+    details: "Подтвердить пятницу"
+  };
+  const createdTask = await request("/api/ai/tasks", { method: "POST", cookie: bob.cookie, body: taskInput });
+  const repeatedTask = await request("/api/ai/tasks", { method: "POST", cookie: bob.cookie, body: taskInput });
+  assert.equal(repeatedTask.payload.task.id, createdTask.payload.task.id, "task confirmation must be idempotent");
+  await assert.rejects(
+    request("/api/ai/tasks", { method: "POST", cookie: eve.cookie, body: { ...taskInput, clientId: randomUUID() } }),
+    /400/,
+    "a foreign user must not create a task from an inaccessible message"
+  );
+  const completedTask = await request(`/api/ai/tasks/${createdTask.payload.task.id}`, {
+    method: "PATCH",
+    cookie: bob.cookie,
+    body: { status: "done" }
+  });
+  assert.equal(completedTask.payload.task.status, "done", "confirmed personal task must be completable");
+  await request("/api/ai/notifications/ack", {
+    method: "POST",
+    cookie: bob.cookie,
+    body: { messageIds: [sent.payload.message.id] }
+  });
+  const acknowledged = await request("/api/ai/notifications/pending", { cookie: bob.cookie });
+  assert.equal(acknowledged.payload.groups.length, 0, "viewed aggregate must leave the pending queue");
+  const followUp = await request(`/api/conversations/${conversationId}/messages`, {
+    method: "POST",
+    cookie: alice.cookie,
+    body: { body: "Нужно подтвердить макет сегодня", clientId: randomUUID(), attachmentIds: [] }
+  });
+  await waitFor(async () => {
+    const result = await query(
+      "SELECT 1 FROM ai_notification_queue WHERE user_id = $1 AND message_id = $2 AND consumed_at IS NULL",
+      [bob.payload.user.id, followUp.payload.message.id]
+    );
+    return Boolean(result.rowCount);
+  }, "follow-up smart notification");
+  await request(`/api/conversations/${conversationId}/read`, { method: "POST", cookie: bob.cookie });
+  const readConversation = await request("/api/ai/notifications/pending", { cookie: bob.cookie });
+  assert.equal(readConversation.payload.groups.length, 0, "opening a chat must clear its smart aggregate");
+  await request(`/api/ai/tasks/${createdTask.payload.task.id}`, { method: "DELETE", cookie: bob.cookie });
 
   await request(`/api/messages/${sent.payload.message.id}?scope=everyone`, {
     method: "DELETE",
@@ -124,6 +182,8 @@ try {
   console.log(JSON.stringify({
     pgvector: true,
     outbox: true,
+    smartNotifications: true,
+    confirmedPersonalTasks: true,
     directAcl: true,
     privateGlobalIsolation: true,
     ragDeletion: true,

@@ -33,6 +33,7 @@ import {
 } from "./realtime.js";
 import { isAllowedOrigin, isSafePushEndpoint } from "./security.js";
 import { createAiRouter } from "./routes/ai.js";
+import { acknowledgeAiNotifications } from "./repositories/ai.js";
 
 const app = express();
 const server = createServer(app);
@@ -2101,6 +2102,9 @@ app.post("/api/conversations/:conversationId/read", requireAuth, async (request,
     if (!result.rowCount) {
       response.status(404).json({ error: "Чат не найден" });
       return;
+    }
+    if (config.ai.availableInEnvironment) {
+      await acknowledgeAiNotifications({ userId, conversationId });
     }
     emitToConversation(conversationId, "read:update", {
       conversationId,

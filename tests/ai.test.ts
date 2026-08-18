@@ -26,6 +26,7 @@ function dependencies(overrides: Partial<AiOrchestratorDependencies> = {}): AiOr
     monthlySpend: vi.fn().mockResolvedValue({ spent: 0, customBudget: null }),
     recordUsage: vi.fn().mockResolvedValue(undefined),
     recordAudit: vi.fn().mockResolvedValue(undefined),
+    acknowledgeNotifications: vi.fn().mockResolvedValue(0),
     ...overrides
   };
 }
@@ -44,6 +45,12 @@ describe("Barsik AI guardrails", () => {
     expect(context.system).toContain("русскоязычный");
     expect(context.prompt).toContain("Релиз согласован на пятницу");
     expect(context.prompt).toContain("[SOURCE");
+  });
+
+  it("applies the requested draft style without granting send access", () => {
+    const context = buildAiContext("draft", "Ответь коллеге", [source], 10_000, { draftStyle: "formal" });
+    expect(context.system).toContain("деловым");
+    expect(context.system).toContain("Ничего не отправляй");
   });
 
   it("blocks prompt injection in questions and retrieved content", () => {
@@ -74,6 +81,66 @@ describe("Barsik AI orchestration", () => {
       expect(result.result.answer).toContain("пятницу");
       expect(result.result.citations).toEqual([expect.objectContaining({ sourceId, label: expect.stringContaining("Проект") })]);
     }
+  });
+
+  it("returns structured catch-up sections and acknowledges only summarized messages", async () => {
+    const acknowledgeNotifications = vi.fn().mockResolvedValue(1);
+    const orchestrator = new AiOrchestrator(
+      new MockAiProvider("Вы пропустили решение о релизе.", [{ sourceId, label: "model label" }], {
+        highlights: ["Релиз в пятницу"],
+        decisions: ["Макет согласован"],
+        questions: ["Нужно подтвердить время"],
+        deadlines: [{ text: "Показать макет", assignee: "Анна", dueAt: "2026-08-21", sourceId }]
+      }),
+      dependencies({ acknowledgeNotifications })
+    );
+    const events = [];
+    for await (const event of orchestrator.run({
+      userId,
+      mode: "catchup",
+      prompt: "Что я пропустил?",
+      conversationId
+    })) events.push(event);
+    const result = events.find((event) => event.type === "result");
+    expect(result?.type === "result" && result.result.highlights).toContain("Релиз в пятницу");
+    expect(acknowledgeNotifications).toHaveBeenCalledWith({
+      userId,
+      conversationId,
+      messageIds: [sourceId]
+    });
+  });
+
+  it("drops invented source ids from proposed tasks", async () => {
+    const orchestrator = new AiOrchestrator(
+      new MockAiProvider("Нашёл одну задачу.", [{ sourceId, label: "model label" }], {
+        tasks: [{
+          title: "Подготовить макет",
+          details: "К пятнице",
+          assignee: "Анна",
+          dueAt: "2026-08-21",
+          sourceId: "invented-message-id"
+        }]
+      }),
+      dependencies()
+    );
+    const events = [];
+    for await (const event of orchestrator.run({
+      userId,
+      mode: "tasks",
+      prompt: "Выдели задачи",
+      conversationId
+    })) events.push(event);
+    const result = events.find((event) => event.type === "result");
+    expect(result?.type === "result" && result.result.tasks[0]?.sourceId).toBeNull();
+    expect(result?.type === "result" && result.result.citations[0]?.sourceId).toBe(sourceId);
+  });
+
+  it("rejects an answer that has sources but no valid source link", async () => {
+    const orchestrator = new AiOrchestrator(
+      new MockAiProvider("Ответ без проверяемой ссылки.", [{ sourceId: "invented", label: "fake" }]),
+      dependencies()
+    );
+    await expect(collect(orchestrator)).rejects.toThrow(/проверяемый источник/);
   });
 
   it("fails closed when the monthly budget is exhausted", async () => {

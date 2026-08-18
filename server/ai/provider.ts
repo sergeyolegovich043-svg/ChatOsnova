@@ -1,7 +1,8 @@
 import { createHash } from "node:crypto";
 import { config } from "../config.js";
 
-export type AiMode = "search" | "summary" | "draft";
+export type AiMode = "search" | "summary" | "catchup" | "draft" | "tasks" | "notification";
+export type DraftStyle = "short" | "formal" | "friendly" | "detailed";
 
 export type ProviderUsage = {
   inputTokens: number;
@@ -39,7 +40,10 @@ export class AiProviderError extends Error {
 const answerJsonSchema = {
   type: "object",
   additionalProperties: false,
-  required: ["answer", "citations"],
+  required: [
+    "answer", "citations", "highlights", "decisions", "questions",
+    "deadlines", "tasks", "draft", "notification"
+  ],
   properties: {
     answer: { type: "string", minLength: 1, maxLength: 12_000 },
     citations: {
@@ -54,6 +58,58 @@ const answerJsonSchema = {
           label: { type: "string", maxLength: 160 }
         }
       }
+    },
+    highlights: { type: "array", maxItems: 12, items: { type: "string", maxLength: 500 } },
+    decisions: { type: "array", maxItems: 12, items: { type: "string", maxLength: 500 } },
+    questions: { type: "array", maxItems: 12, items: { type: "string", maxLength: 500 } },
+    deadlines: {
+      type: "array",
+      maxItems: 12,
+      items: {
+        type: "object",
+        additionalProperties: false,
+        required: ["text", "assignee", "dueAt", "sourceId"],
+        properties: {
+          text: { type: "string", minLength: 1, maxLength: 500 },
+          assignee: { type: ["string", "null"], maxLength: 120 },
+          dueAt: { type: ["string", "null"], maxLength: 40 },
+          sourceId: { type: ["string", "null"] }
+        }
+      }
+    },
+    tasks: {
+      type: "array",
+      maxItems: 20,
+      items: {
+        type: "object",
+        additionalProperties: false,
+        required: ["title", "details", "assignee", "dueAt", "sourceId"],
+        properties: {
+          title: { type: "string", minLength: 1, maxLength: 240 },
+          details: { type: "string", maxLength: 1_000 },
+          assignee: { type: ["string", "null"], maxLength: 120 },
+          dueAt: { type: ["string", "null"], maxLength: 40 },
+          sourceId: { type: ["string", "null"] }
+        }
+      }
+    },
+    draft: { type: ["string", "null"], maxLength: 4_000 },
+    notification: {
+      anyOf: [
+        { type: "null" },
+        {
+          type: "object",
+          additionalProperties: false,
+          required: ["title", "body", "priority", "mentionsUser", "actionRequired"],
+          properties: {
+            title: { type: "string", minLength: 1, maxLength: 120 },
+            body: { type: "string", minLength: 1, maxLength: 300 },
+            priority: { type: "string", enum: ["normal", "important", "urgent"] },
+            mentionsUser: { type: "boolean" },
+            actionRequired: { type: "boolean" }
+          }
+        }
+      ]
     }
   }
 } as const;
@@ -214,7 +270,16 @@ export class MockAiProvider implements AiProvider {
 
   constructor(
     private readonly answer = "Готово. Это тестовый ответ Барсика.",
-    private readonly citations: Array<{ sourceId: string; label: string }> = []
+    private readonly citations: Array<{ sourceId: string; label: string }> = [],
+    private readonly structured: Partial<{
+      highlights: string[];
+      decisions: string[];
+      questions: string[];
+      deadlines: Array<{ text: string; assignee: string | null; dueAt: string | null; sourceId: string | null }>;
+      tasks: Array<{ title: string; details: string; assignee: string | null; dueAt: string | null; sourceId: string | null }>;
+      draft: string | null;
+      notification: { title: string; body: string; priority: "normal" | "important" | "urgent"; mentionsUser: boolean; actionRequired: boolean } | null;
+    }> = {}
   ) {}
 
   async moderate(input: string) {
@@ -227,7 +292,17 @@ export class MockAiProvider implements AiProvider {
 
   async *stream(_request: ProviderRequest, signal?: AbortSignal): AsyncGenerator<ProviderStreamEvent> {
     if (signal?.aborted) throw new AiProviderError("Генерация отменена", "cancelled");
-    const text = JSON.stringify({ answer: this.answer, citations: this.citations });
+    const text = JSON.stringify({
+      answer: this.answer,
+      citations: this.citations,
+      highlights: this.structured.highlights ?? [],
+      decisions: this.structured.decisions ?? [],
+      questions: this.structured.questions ?? [],
+      deadlines: this.structured.deadlines ?? [],
+      tasks: this.structured.tasks ?? [],
+      draft: this.structured.draft ?? null,
+      notification: this.structured.notification ?? null
+    });
     yield { type: "delta", delta: text };
     yield { type: "completed", text, usage: { inputTokens: 32, outputTokens: 16 } };
   }
