@@ -53,13 +53,18 @@ import { featureFlags } from "../features";
 import { applyReadReceipt, messageDeliveryState, shouldShowPopup, upsertMessage } from "../message-state";
 import {
   hasNativePetBridge,
+  isPetQuiet,
   notifyNativePet,
+  PET_NOTIFICATION_COOLDOWN_MS,
   readPetEnabled,
+  readPetPreferences,
   savePetEnabled,
+  savePetPreferences,
   syncNativePetActivity,
   syncNativePet,
   type PetActivity,
   type PetNotification,
+  type PetPreferences,
   type PetReaction
 } from "../pet";
 import type { Attachment, ChatFolder, ColorTheme, Conversation, Member, Message, MessageSearchResult, User } from "../types";
@@ -249,6 +254,7 @@ export function Messenger({ user, setUser, onLogout, canInstall, installApp, the
   const [toast, setToast] = useState("");
   const [messagePopups, setMessagePopups] = useState<MessagePopup[]>([]);
   const [petEnabled, setPetEnabled] = useState(() => readPetEnabled(featureFlags.petCompanion));
+  const [petPreferences, setPetPreferences] = useState<PetPreferences>(readPetPreferences);
   const [petNotification, setPetNotification] = useState<PetNotification | null>(null);
   const [petReaction, setPetReaction] = useState<PetReaction | null>(null);
   const socketRef = useRef<Socket | null>(null);
@@ -259,7 +265,11 @@ export function Messenger({ user, setUser, onLogout, canInstall, installApp, the
   const messagesEndRef = useRef<HTMLDivElement | null>(null);
   const globalSearchInputRef = useRef<HTMLInputElement | null>(null);
   const petEnabledRef = useRef(petEnabled);
+  const petPreferencesRef = useRef(petPreferences);
   const petReactionTimerRef = useRef(0);
+  const petNotificationTimerRef = useRef(0);
+  const lastPetNotificationAtRef = useRef(0);
+  const pendingPetNotificationRef = useRef<PetNotification | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const inputRef = useRef<HTMLTextAreaElement | null>(null);
   const typingTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -267,6 +277,7 @@ export function Messenger({ user, setUser, onLogout, canInstall, installApp, the
   const activeConversation = conversations.find((conversation) => conversation.id === activeId) ?? null;
   const activeMessages = activeId ? messages[activeId] ?? [] : [];
   const totalUnreadCount = useMemo(() => conversations.reduce((total, conversation) => total + conversation.unreadCount, 0), [conversations]);
+  const petQuiet = isPetQuiet(petPreferences);
   const petActivity: PetActivity | null = globalSearchLoading
     ? { type: "searching", source: "messages", label: "Ищу по перепискам" }
     : null;
@@ -286,8 +297,33 @@ export function Messenger({ user, setUser, onLogout, canInstall, installApp, the
     if (!petEnabled) {
       setPetNotification(null);
       setPetReaction(null);
+      window.clearTimeout(petNotificationTimerRef.current);
+      petNotificationTimerRef.current = 0;
+      pendingPetNotificationRef.current = null;
     }
   }, [petEnabled]);
+
+  useEffect(() => {
+    petPreferencesRef.current = petPreferences;
+    savePetPreferences(petPreferences);
+    if (isPetQuiet(petPreferences)) {
+      setPetNotification(null);
+      setPetReaction(null);
+      window.clearTimeout(petNotificationTimerRef.current);
+      petNotificationTimerRef.current = 0;
+      pendingPetNotificationRef.current = null;
+    }
+    if (!petPreferences.quietUntil) return;
+    const remaining = petPreferences.quietUntil - Date.now();
+    if (remaining <= 0) {
+      setPetPreferences((current) => ({ ...current, quietUntil: null }));
+      return;
+    }
+    const timer = window.setTimeout(() => {
+      setPetPreferences((current) => ({ ...current, quietUntil: null }));
+    }, remaining);
+    return () => window.clearTimeout(timer);
+  }, [petPreferences]);
 
   useEffect(() => {
     const nextActivity = petEnabled ? petActivity : null;
@@ -301,14 +337,40 @@ export function Messenger({ user, setUser, onLogout, canInstall, installApp, the
     popupTimersRef.current.forEach((timer) => window.clearTimeout(timer));
     popupTimersRef.current.clear();
     window.clearTimeout(petReactionTimerRef.current);
+    window.clearTimeout(petNotificationTimerRef.current);
   }, []);
 
   const triggerPetReaction = useCallback((nextReaction: PetReaction) => {
-    if (!featureFlags.petCompanion || !petEnabledRef.current) return;
+    if (!featureFlags.petCompanion || !petEnabledRef.current || isPetQuiet(petPreferencesRef.current)) return;
     window.clearTimeout(petReactionTimerRef.current);
     setPetReaction(nextReaction);
     petReactionTimerRef.current = window.setTimeout(() => setPetReaction(null), 5_000);
   }, []);
+
+  const deliverPetNotification = useCallback((notification: PetNotification) => {
+    lastPetNotificationAtRef.current = Date.now();
+    setPetNotification(notification);
+    void notifyNativePet(notification);
+  }, []);
+
+  const queuePetNotification = useCallback((notification: PetNotification) => {
+    pendingPetNotificationRef.current = notification;
+    const remaining = PET_NOTIFICATION_COOLDOWN_MS - (Date.now() - lastPetNotificationAtRef.current);
+    if (remaining <= 0) {
+      window.clearTimeout(petNotificationTimerRef.current);
+      petNotificationTimerRef.current = 0;
+      pendingPetNotificationRef.current = null;
+      deliverPetNotification(notification);
+      return;
+    }
+    if (petNotificationTimerRef.current) return;
+    petNotificationTimerRef.current = window.setTimeout(() => {
+      petNotificationTimerRef.current = 0;
+      const pending = pendingPetNotificationRef.current;
+      pendingPetNotificationRef.current = null;
+      if (pending && petEnabledRef.current && !isPetQuiet(petPreferencesRef.current)) deliverPetNotification(pending);
+    }, remaining);
+  }, [deliverPetNotification]);
 
   const showToast = useCallback((message: string) => {
     setToast(message);
@@ -375,16 +437,16 @@ export function Messenger({ user, setUser, onLogout, canInstall, installApp, the
       avatarUrl: isGroup ? conversation.avatarUrl : message.sender.avatarUrl
     };
     setMessagePopups((current) => [popup, ...current.filter((item) => item.id !== popup.id)].slice(0, 3));
-    if (featureFlags.petCompanion && petEnabledRef.current) {
+    if (featureFlags.petCompanion && petEnabledRef.current && !isPetQuiet(petPreferencesRef.current)) {
+      const showPreview = petPreferencesRef.current.showMessagePreview;
       const notification: PetNotification = {
         id: popup.id,
         conversationId: popup.conversationId,
         title: popup.title,
         subtitle: popup.subtitle,
-        body: popup.body
+        body: showPreview ? popup.body : "Текст сообщения скрыт"
       };
-      setPetNotification(notification);
-      void notifyNativePet(notification);
+      queuePetNotification(notification);
     }
     const previousTimer = popupTimersRef.current.get(popup.id);
     if (previousTimer) window.clearTimeout(previousTimer);
@@ -392,7 +454,7 @@ export function Messenger({ user, setUser, onLogout, canInstall, installApp, the
       popupTimersRef.current.delete(popup.id);
       setMessagePopups((current) => current.filter((item) => item.id !== popup.id));
     }, 6200));
-  }, [user.username]);
+  }, [queuePetNotification, user.username]);
 
   useEffect(() => {
     void loadConversations();
@@ -410,7 +472,12 @@ export function Messenger({ user, setUser, onLogout, canInstall, installApp, the
         && document.hasFocus();
       const conversationAtArrival = conversationsRef.current.find((conversation) => conversation.id === message.conversationId);
       if (!isOwnMessage && message.reply?.senderId === user.id) {
-        triggerPetReaction({ id: `incoming-reply:${message.id}`, type: "reply" });
+        triggerPetReaction({
+          id: `incoming-reply:${message.id}`,
+          type: "reply",
+          conversationId: message.conversationId,
+          messageId: message.id
+        });
       }
       setMessages((current) => ({
         ...current,
@@ -815,6 +882,33 @@ export function Messenger({ user, setUser, onLogout, canInstall, installApp, the
     window.requestAnimationFrame(() => globalSearchInputRef.current?.focus());
   }
 
+  function openUnreadFolder() {
+    setSearch("");
+    setActiveFolder("unread");
+    if (window.matchMedia("(max-width: 760px)").matches) closeMobileConversation();
+  }
+
+  async function openPetMessage(conversationId: string, messageId: string) {
+    if ((messages[conversationId] ?? []).some((message) => message.id === messageId)) {
+      openConversation(conversationId, messageId);
+      return;
+    }
+    try {
+      const context = await api.messageContext(messageId);
+      setMessages((current) => ({
+        ...current,
+        [context.conversationId]: context.messages.reduce(upsertMessage, current[context.conversationId] ?? [])
+      }));
+      openConversation(context.conversationId, messageId);
+    } catch (caught) {
+      showToast(caught instanceof Error ? caught.message : "Не удалось открыть сообщение");
+    }
+  }
+
+  function setPetQuiet(quiet: boolean) {
+    setPetPreferences((current) => ({ ...current, quietUntil: quiet ? Date.now() + 60 * 60_000 : null }));
+  }
+
   async function loadOlder() {
     if (!activeId || !activeMessages.length) return;
     setOlderLoading(true);
@@ -1024,7 +1118,12 @@ export function Messenger({ user, setUser, onLogout, canInstall, installApp, the
     setMessageMenu(null);
     setReplyTo(message);
     setEditing(null);
-    triggerPetReaction({ id: `compose-reply:${message.id}:${Date.now()}`, type: "reply" });
+    triggerPetReaction({
+      id: `compose-reply:${message.id}:${Date.now()}`,
+      type: "reply",
+      conversationId: message.conversationId,
+      messageId: message.id
+    });
     inputRef.current?.focus();
   }
 
@@ -1775,7 +1874,9 @@ export function Messenger({ user, setUser, onLogout, canInstall, installApp, the
           onThemeChange={onThemeChange}
           petAvailable={featureFlags.petCompanion}
           petEnabled={petEnabled}
+          petPreferences={petPreferences}
           onPetEnabledChange={setPetEnabled}
+          onPetPreferencesChange={setPetPreferences}
           onUserChange={updateCurrentUser}
           onLogout={logout}
           onClose={() => setProfileOpen(false)}
@@ -1806,7 +1907,13 @@ export function Messenger({ user, setUser, onLogout, canInstall, installApp, the
             notification={petNotification}
             reaction={petReaction}
             unreadCount={totalUnreadCount}
+            quiet={petQuiet}
             onOpenConversation={openConversation}
+            onOpenUnread={openUnreadFolder}
+            onOpenMessage={(conversationId, messageId) => void openPetMessage(conversationId, messageId)}
+            onOpenSearch={focusGlobalSearch}
+            onOpenSettings={() => setProfileOpen(true)}
+            onQuietChange={setPetQuiet}
             onDisable={() => setPetEnabled(false)}
           />
         </Suspense>

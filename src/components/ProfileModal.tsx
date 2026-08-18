@@ -13,6 +13,7 @@ import {
 } from "@phosphor-icons/react";
 import { api } from "../api";
 import { featureFlags } from "../features";
+import type { PetPreferences } from "../pet";
 import type { ColorTheme, User } from "../types";
 import { Avatar } from "./Avatar";
 
@@ -28,7 +29,9 @@ type ProfileModalProps = {
   onThemeChange: (theme: ColorTheme) => void;
   petAvailable: boolean;
   petEnabled: boolean;
+  petPreferences: PetPreferences;
   onPetEnabledChange: (enabled: boolean) => void;
+  onPetPreferencesChange: (preferences: PetPreferences) => void;
   onUserChange: (user: User) => void;
   onLogout: () => Promise<void>;
   onClose: () => void;
@@ -49,7 +52,9 @@ export function ProfileModal({
   onThemeChange,
   petAvailable,
   petEnabled,
+  petPreferences,
   onPetEnabledChange,
+  onPetPreferencesChange,
   onUserChange,
   onLogout,
   onClose
@@ -202,7 +207,12 @@ export function ProfileModal({
           </button>
           {PetProfileSetting && petAvailable && (
             <Suspense fallback={null}>
-              <PetProfileSetting enabled={petEnabled} onChange={onPetEnabledChange} />
+              <PetProfileSetting
+                enabled={petEnabled}
+                preferences={petPreferences}
+                onChange={onPetEnabledChange}
+                onPreferencesChange={onPetPreferencesChange}
+              />
             </Suspense>
           )}
           <button className="danger-setting" onClick={onLogout}>

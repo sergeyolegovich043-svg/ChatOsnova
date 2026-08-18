@@ -2,8 +2,10 @@ export const PET_ENABLED_KEY = "barsikchat.pet.enabled";
 export const PET_POSITION_KEY = "barsikchat.pet.position";
 export const PET_LEGACY_X_POSITION_KEY = "barsikchat.pet.position-x";
 export const PET_ONBOARDING_SEEN_KEY = "barsikchat.pet.onboarding-v1-seen";
+export const PET_PREFERENCES_KEY = "barsikchat.pet.preferences-v1";
 export const PET_ACTIVITY_EVENT = "barsikchat:pet-activity";
 export const PET_UNREAD_STACK_THRESHOLD = 5;
+export const PET_NOTIFICATION_COOLDOWN_MS = 15_000;
 
 export type PetPosition = {
   x: number;
@@ -27,6 +29,18 @@ export type PetNotification = {
 export type PetReaction = {
   id: string;
   type: "onboarding" | "unread-stack" | "reply";
+  conversationId?: string;
+  messageId?: string;
+};
+
+export type PetPreferences = {
+  showMessagePreview: boolean;
+  quietUntil: number | null;
+};
+
+export const DEFAULT_PET_PREFERENCES: PetPreferences = {
+  showMessagePreview: true,
+  quietUntil: null
 };
 
 type NativePetBridge = {
@@ -79,6 +93,50 @@ export function savePetOnboardingSeen(storage: Pick<Storage, "setItem"> | null =
 
 export function shouldAnimateUnreadStack(previousCount: number, nextCount: number, threshold = PET_UNREAD_STACK_THRESHOLD) {
   return previousCount < threshold && nextCount >= threshold;
+}
+
+export function readPetPreferences(storage: Pick<Storage, "getItem"> | null = safeStorage()): PetPreferences {
+  if (!storage) return { ...DEFAULT_PET_PREFERENCES };
+  try {
+    const stored = storage.getItem(PET_PREFERENCES_KEY);
+    if (!stored) return { ...DEFAULT_PET_PREFERENCES };
+    const parsed = JSON.parse(stored) as Partial<PetPreferences>;
+    return {
+      showMessagePreview: parsed.showMessagePreview !== false,
+      quietUntil: typeof parsed.quietUntil === "number" && Number.isFinite(parsed.quietUntil) && parsed.quietUntil > 0
+        ? parsed.quietUntil
+        : null
+    };
+  } catch {
+    return { ...DEFAULT_PET_PREFERENCES };
+  }
+}
+
+export function savePetPreferences(preferences: PetPreferences, storage: Pick<Storage, "setItem"> | null = safeStorage()) {
+  if (!storage) return;
+  try {
+    storage.setItem(PET_PREFERENCES_KEY, JSON.stringify(preferences));
+  } catch {
+    // The preferences remain active for the current session when storage is blocked.
+  }
+}
+
+export function isPetQuiet(preferences: PetPreferences, now = Date.now()) {
+  return preferences.quietUntil !== null && preferences.quietUntil > now;
+}
+
+const reactionPriority: Record<PetReaction["type"], number> = {
+  onboarding: 3,
+  reply: 2,
+  "unread-stack": 1
+};
+
+export function queuePetReaction(current: PetReaction[], next: PetReaction) {
+  if (current.some((reaction) => reaction.id === next.id)) return current;
+  const deduplicated = next.type === "onboarding"
+    ? current
+    : current.filter((reaction) => reaction.type !== next.type);
+  return [...deduplicated, next].sort((left, right) => reactionPriority[right.type] - reactionPriority[left.type]);
 }
 
 export function clampPetX(value: number, viewportWidth: number, petWidth = 148) {

@@ -6,13 +6,14 @@ import {
   type CSSProperties,
   type PointerEvent as ReactPointerEvent
 } from "react";
-import { EyeSlash, PawPrint } from "@phosphor-icons/react";
+import { BellSlash, ChatCircleDots, EyeSlash, GearSix, MagnifyingGlass, PawPrint } from "@phosphor-icons/react";
 import {
   clampPetPosition,
   dragPetPosition,
   PET_ACTIVITY_EVENT,
   PET_LEGACY_X_POSITION_KEY,
   PET_POSITION_KEY,
+  queuePetReaction,
   readPetOnboardingSeen,
   savePetOnboardingSeen,
   shouldAnimateUnreadStack,
@@ -34,7 +35,13 @@ type PetCompanionProps = {
   notification: PetNotification | null;
   reaction: PetReaction | null;
   unreadCount: number;
+  quiet: boolean;
   onOpenConversation: (conversationId: string) => void;
+  onOpenUnread: () => void;
+  onOpenMessage: (conversationId: string, messageId: string) => void;
+  onOpenSearch: () => void;
+  onOpenSettings: () => void;
+  onQuietChange: (quiet: boolean) => void;
   onDisable: () => void;
 };
 
@@ -106,6 +113,19 @@ function clampToViewport(position: PetPosition) {
   return clampPetPosition(position, window.innerWidth, window.innerHeight, size.width, size.height);
 }
 
+function clampAwayFromComposer(position: PetPosition) {
+  const clamped = clampToViewport(position);
+  const composer = document.querySelector<HTMLElement>(".composer-wrap");
+  if (!composer) return clamped;
+  const composerRect = composer.getBoundingClientRect();
+  if (composerRect.width <= 0 || composerRect.height <= 0) return clamped;
+  const size = petSize(window.innerWidth);
+  const overlapsHorizontally = clamped.x + size.width > composerRect.left - 8 && clamped.x < composerRect.right + 8;
+  const overlapsVertically = clamped.y + size.height > composerRect.top - 8 && clamped.y < composerRect.bottom + 8;
+  if (!overlapsHorizontally || !overlapsVertically) return clamped;
+  return clampToViewport({ ...clamped, y: composerRect.top - size.height - 12 });
+}
+
 function initialPosition(): PetPosition {
   if (typeof window === "undefined") return { x: 24, y: 24 };
   const size = petSize(window.innerWidth);
@@ -146,7 +166,20 @@ function initialPosition(): PetPosition {
   return fallback;
 }
 
-export function PetCompanion({ activity, notification, reaction, unreadCount, onOpenConversation, onDisable }: PetCompanionProps) {
+export function PetCompanion({
+  activity,
+  notification,
+  reaction,
+  unreadCount,
+  quiet,
+  onOpenConversation,
+  onOpenUnread,
+  onOpenMessage,
+  onOpenSearch,
+  onOpenSettings,
+  onQuietChange,
+  onDisable
+}: PetCompanionProps) {
   const [position, setPosition] = useState(initialPosition);
   const [idleFrame, setIdleFrame] = useState(0);
   const [notificationFrame, setNotificationFrame] = useState(0);
@@ -167,6 +200,7 @@ export function PetCompanion({ activity, notification, reaction, unreadCount, on
   const searchStartedAtRef = useRef(0);
   const previousUnreadCountRef = useRef(0);
   const queuedReactionIdsRef = useRef(new Set<string>());
+  const actionableReactionRef = useRef<{ reaction: PetReaction; expiresAt: number } | null>(null);
   const dragRef = useRef({ startPointerX: 0, startPointerY: 0, startPetX: 0, startPetY: 0, moved: false });
   const currentActivity = activity ?? externalActivity;
   const visualMode = activeReaction?.type ?? (mode !== "sit"
@@ -178,7 +212,10 @@ export function PetCompanion({ activity, notification, reaction, unreadCount, on
   const enqueueReaction = useCallback((nextReaction: PetReaction) => {
     if (queuedReactionIdsRef.current.has(nextReaction.id)) return;
     queuedReactionIdsRef.current.add(nextReaction.id);
-    setReactionQueue((current) => [...current, nextReaction]);
+    if (nextReaction.type !== "onboarding") {
+      actionableReactionRef.current = { reaction: nextReaction, expiresAt: Date.now() + 10_000 };
+    }
+    setReactionQueue((current) => queuePetReaction(current, nextReaction));
   }, []);
 
   useEffect(() => {
@@ -191,16 +228,24 @@ export function PetCompanion({ activity, notification, reaction, unreadCount, on
   useEffect(() => {
     const previousCount = previousUnreadCountRef.current;
     previousUnreadCountRef.current = unreadCount;
-    if (!shouldAnimateUnreadStack(previousCount, unreadCount)) return;
+    if (quiet || !shouldAnimateUnreadStack(previousCount, unreadCount)) return;
     setGreetingVisible(false);
     enqueueReaction({ id: `unread-stack:${Date.now()}`, type: "unread-stack" });
-  }, [enqueueReaction, unreadCount]);
+  }, [enqueueReaction, quiet, unreadCount]);
 
   useEffect(() => {
-    if (!reaction) return;
+    if (!reaction || quiet) return;
     setGreetingVisible(false);
     enqueueReaction(reaction);
-  }, [enqueueReaction, reaction]);
+  }, [enqueueReaction, quiet, reaction]);
+
+  useEffect(() => {
+    if (!quiet) return;
+    setVisibleNotification(null);
+    setReactionQueue([]);
+    setActiveReaction((current) => current?.type === "onboarding" ? current : null);
+    setMode("sit");
+  }, [quiet]);
 
   useEffect(() => {
     if (activeReaction || reactionQueue.length === 0) return;
@@ -294,7 +339,7 @@ export function PetCompanion({ activity, notification, reaction, unreadCount, on
   }, [searchStage]);
 
   useEffect(() => {
-    if (!notification) return;
+    if (!notification || quiet) return;
     setVisibleNotification(notification);
     setGreetingVisible(false);
     setMode("notifying");
@@ -304,7 +349,7 @@ export function PetCompanion({ activity, notification, reaction, unreadCount, on
       setMode("sit");
     }, 8_000);
     return () => window.clearTimeout(timer);
-  }, [notification]);
+  }, [notification, quiet]);
 
   useEffect(() => {
     if (mode !== "notifying" || !visibleNotification) return;
@@ -349,8 +394,17 @@ export function PetCompanion({ activity, notification, reaction, unreadCount, on
   }, [dragging, visualMode, visibleNotification]);
 
   useEffect(() => {
+    const frame = window.requestAnimationFrame(() => {
+      const next = clampAwayFromComposer(positionRef.current);
+      positionRef.current = next;
+      setPosition(next);
+    });
+    return () => window.cancelAnimationFrame(frame);
+  }, []);
+
+  useEffect(() => {
     const resize = () => {
-      const next = clampToViewport(positionRef.current);
+      const next = clampAwayFromComposer(positionRef.current);
       positionRef.current = next;
       setPosition(next);
     };
@@ -409,8 +463,9 @@ export function PetCompanion({ activity, notification, reaction, unreadCount, on
       size.width,
       size.height
     );
-    positionRef.current = next;
-    setPosition(next);
+    const usable = clampAwayFromComposer(next);
+    positionRef.current = usable;
+    setPosition(usable);
   }
 
   function finishDrag(event: ReactPointerEvent<HTMLButtonElement>) {
@@ -431,7 +486,41 @@ export function PetCompanion({ activity, notification, reaction, unreadCount, on
     } catch {
       // The position remains valid until this tab is closed.
     }
-    if (!dragRef.current.moved) greet();
+    if (!dragRef.current.moved) handlePetClick();
+  }
+
+  function handlePetClick() {
+    const recent = activeReaction ?? (
+      actionableReactionRef.current && actionableReactionRef.current.expiresAt > Date.now()
+        ? actionableReactionRef.current.reaction
+        : null
+    );
+    if (recent?.type === "unread-stack") {
+      actionableReactionRef.current = null;
+      setActiveReaction(null);
+      setVisibleNotification(null);
+      setMode("sit");
+      setMenuOpen(false);
+      onOpenUnread();
+      return;
+    }
+    if (recent?.type === "reply" && recent.conversationId && recent.messageId) {
+      actionableReactionRef.current = null;
+      setActiveReaction(null);
+      setVisibleNotification(null);
+      setMode("sit");
+      setMenuOpen(false);
+      onOpenMessage(recent.conversationId, recent.messageId);
+      return;
+    }
+    if (visibleNotification) {
+      onOpenConversation(visibleNotification.conversationId);
+      setVisibleNotification(null);
+      setMode("sit");
+      return;
+    }
+    setGreetingVisible(false);
+    setMenuOpen((open) => !open);
   }
 
   function greet() {
@@ -506,6 +595,20 @@ export function PetCompanion({ activity, notification, reaction, unreadCount, on
       )}
       {menuOpen && (
         <div className={`pet-menu ${alignRight ? "align-right" : "align-left"}`} role="menu" onPointerDown={(event) => event.stopPropagation()}>
+          <span className="pet-menu-title"><strong>Барсик</strong><small>{quiet ? "Тихий режим" : "На связи"}</small></span>
+          <button type="button" role="menuitem" onClick={() => { setMenuOpen(false); onOpenUnread(); }} disabled={unreadCount === 0}>
+            <ChatCircleDots size={16} weight="fill" /> Непрочитанные {unreadCount > 0 && <b>{unreadCount > 99 ? "99+" : unreadCount}</b>}
+          </button>
+          <button type="button" role="menuitem" onClick={() => { setMenuOpen(false); onOpenSearch(); }}><MagnifyingGlass size={16} /> Найти сообщение</button>
+          {notification && (
+            <button type="button" role="menuitem" onClick={() => { setMenuOpen(false); setVisibleNotification(null); setMode("sit"); onOpenConversation(notification.conversationId); }}>
+              <ChatCircleDots size={16} /> Последнее уведомление
+            </button>
+          )}
+          <button type="button" role="menuitem" onClick={() => { setMenuOpen(false); onQuietChange(!quiet); }}>
+            <BellSlash size={16} /> {quiet ? "Включить реакции" : "Не беспокоить 1 час"}
+          </button>
+          <button type="button" role="menuitem" onClick={() => { setMenuOpen(false); onOpenSettings(); }}><GearSix size={16} /> Настройки</button>
           <button type="button" role="menuitem" onClick={greet}><PawPrint size={16} weight="fill" /> Погладить</button>
           <button type="button" role="menuitem" className="danger" onClick={onDisable}><EyeSlash size={16} /> Спрятать</button>
         </div>
@@ -513,8 +616,8 @@ export function PetCompanion({ activity, notification, reaction, unreadCount, on
       <button
         className="pet-sprite-button"
         type="button"
-        aria-label="Перетащить или погладить Барсика"
-        title="Барсика можно перетащить в любое место"
+        aria-label="Перетащить Барсика или открыть его меню"
+        title="Нажмите для меню или перетащите Барсика"
         style={spriteStyle}
         onPointerDown={startDrag}
         onPointerMove={movePet}
@@ -522,7 +625,8 @@ export function PetCompanion({ activity, notification, reaction, unreadCount, on
         onPointerCancel={finishDrag}
         onContextMenu={(event) => {
           event.preventDefault();
-          setMenuOpen(true);
+          setGreetingVisible(false);
+          setMenuOpen((open) => !open);
         }}
       >
         <span className="pet-idle-sprite" aria-hidden="true" />
