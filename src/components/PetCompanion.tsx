@@ -17,6 +17,7 @@ import {
   type PetPosition
 } from "../pet";
 import petIdleUrl from "../assets/pet-states/barsik-metallica-idle-v2.png";
+import petNotificationUrl from "../assets/pet-states/barsik-metallica-notification-v1.png";
 import petSearchUrl from "../assets/pet-states/barsik-metallica-search-v1.png";
 import "../pet.css";
 
@@ -27,7 +28,7 @@ type PetCompanionProps = {
   onDisable: () => void;
 };
 
-type PetMode = "sit" | "excited";
+type PetMode = "sit" | "excited" | "notifying";
 type PetSearchStage = "idle" | "searching" | "found";
 
 const PET_WIDTH = 167;
@@ -36,10 +37,20 @@ const MOBILE_PET_WIDTH = 140;
 const MOBILE_PET_HEIGHT = 150;
 const MOBILE_BREAKPOINT = 720;
 const IDLE_FRAME_POSITIONS = ["0%", "25%", "50%", "75%", "100%"];
+const NOTIFICATION_FRAME_POSITIONS = ["0%", "25%", "50%", "75%", "100%"];
 const SEARCH_FRAME_POSITIONS = ["0%", "25%", "50%", "75%", "100%"];
 const SEARCH_SEQUENCE = [0, 1, 2, 3, 2, 1];
 const MIN_SEARCH_VISIBLE_MS = 1_600;
 const SEARCH_FOUND_VISIBLE_MS = 720;
+const NOTIFICATION_SEQUENCE = [
+  { frame: 0, duration: 160 },
+  { frame: 1, duration: 220 },
+  { frame: 2, duration: 260 },
+  { frame: 3, duration: 340 },
+  { frame: 2, duration: 220 },
+  { frame: 3, duration: 300 },
+  { frame: 4, duration: 260 }
+];
 const IDLE_SEQUENCE = [
   { frame: 0, duration: 1_300 },
   { frame: 1, duration: 460 },
@@ -104,6 +115,7 @@ function initialPosition(): PetPosition {
 export function PetCompanion({ activity, notification, onOpenConversation, onDisable }: PetCompanionProps) {
   const [position, setPosition] = useState(initialPosition);
   const [idleFrame, setIdleFrame] = useState(0);
+  const [notificationFrame, setNotificationFrame] = useState(0);
   const [searchFrame, setSearchFrame] = useState(0);
   const [searchStage, setSearchStage] = useState<PetSearchStage>("idle");
   const [searchLabel, setSearchLabel] = useState("Ищу и анализирую");
@@ -118,8 +130,8 @@ export function PetCompanion({ activity, notification, onOpenConversation, onDis
   const searchStartedAtRef = useRef(0);
   const dragRef = useRef({ startPointerX: 0, startPointerY: 0, startPetX: 0, startPetY: 0, moved: false });
   const currentActivity = activity ?? externalActivity;
-  const visualMode = mode === "excited"
-    ? "excited"
+  const visualMode = mode !== "sit"
+    ? mode
     : searchStage === "idle"
       ? "sit"
       : searchStage;
@@ -184,14 +196,37 @@ export function PetCompanion({ activity, notification, onOpenConversation, onDis
     if (!notification) return;
     setVisibleNotification(notification);
     setGreetingVisible(false);
-    setMode("excited");
-    setIdleFrame(4);
+    setMode("notifying");
+    setNotificationFrame(0);
     const timer = window.setTimeout(() => {
       setVisibleNotification((current) => current?.id === notification.id ? null : current);
       setMode("sit");
     }, 8_000);
     return () => window.clearTimeout(timer);
   }, [notification]);
+
+  useEffect(() => {
+    if (mode !== "notifying" || !visibleNotification) return;
+    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+      setNotificationFrame(3);
+      return;
+    }
+
+    let sequenceIndex = 0;
+    let timer = 0;
+    setNotificationFrame(NOTIFICATION_SEQUENCE[0].frame);
+    const advance = () => {
+      timer = window.setTimeout(() => {
+        sequenceIndex += 1;
+        if (sequenceIndex >= NOTIFICATION_SEQUENCE.length) return;
+        setNotificationFrame(NOTIFICATION_SEQUENCE[sequenceIndex].frame);
+        advance();
+      }, NOTIFICATION_SEQUENCE[sequenceIndex].duration);
+    };
+    advance();
+
+    return () => window.clearTimeout(timer);
+  }, [mode, visibleNotification]);
 
   useEffect(() => {
     if (visualMode !== "sit" || dragging || visibleNotification) return;
@@ -314,6 +349,8 @@ export function PetCompanion({ activity, notification, onOpenConversation, onDis
   const spriteStyle = {
     "--pet-idle": `url("${petIdleUrl}")`,
     "--pet-idle-frame": IDLE_FRAME_POSITIONS[idleFrame],
+    "--pet-notification": `url("${petNotificationUrl}")`,
+    "--pet-notification-frame": NOTIFICATION_FRAME_POSITIONS[notificationFrame],
     "--pet-search": `url("${petSearchUrl}")`,
     "--pet-search-frame": SEARCH_FRAME_POSITIONS[searchFrame]
   } as CSSProperties;
@@ -377,6 +414,7 @@ export function PetCompanion({ activity, notification, onOpenConversation, onDis
         }}
       >
         <span className="pet-idle-sprite" aria-hidden="true" />
+        <span className="pet-notification-sprite" aria-hidden="true" />
         <span className="pet-search-sprite" aria-hidden="true" />
       </button>
       <span className="pet-ground-shadow" aria-hidden="true" />

@@ -48,26 +48,38 @@
   will-change: background-position, filter;
 }
 
-.pet-search-sprite {
+.pet-search-sprite,
+.pet-notification-sprite {
   position: absolute;
   inset: 0;
   display: none;
-  background-image: var(--pet-search);
   background-repeat: no-repeat;
-  background-position: var(--pet-search-frame) center;
   background-size: 500% 100%;
   image-rendering: pixelated;
   image-rendering: crisp-edges;
   will-change: background-position, filter;
 }
 
+.pet-search-sprite {
+  background-image: var(--pet-search);
+  background-position: var(--pet-search-frame) center;
+}
+
+.pet-notification-sprite {
+  background-image: var(--pet-notification);
+  background-position: var(--pet-notification-frame) center;
+}
+
 .pet-searching .pet-idle-sprite,
-.pet-found .pet-idle-sprite { display: none; }
+.pet-found .pet-idle-sprite,
+.pet-notifying .pet-idle-sprite { display: none; }
 .pet-searching .pet-search-sprite,
 .pet-found .pet-search-sprite { display: block; }
+.pet-notifying .pet-notification-sprite { display: block; }
 
 .pet-sprite-button:hover .pet-idle-sprite,
-.pet-sprite-button:hover .pet-search-sprite { filter: brightness(1.08) saturate(1.06); }
+.pet-sprite-button:hover .pet-search-sprite,
+.pet-sprite-button:hover .pet-notification-sprite { filter: brightness(1.08) saturate(1.06); }
 
 .pet-ground-shadow {
   position: absolute;
@@ -269,6 +281,7 @@
 @media (prefers-reduced-motion: reduce) {
   .pet-idle-sprite,
   .pet-search-sprite,
+  .pet-notification-sprite,
   .pet-ground-shadow,
   .pet-activity-dot { animation: none !important; }
   .pet-companion { transition: none; }
