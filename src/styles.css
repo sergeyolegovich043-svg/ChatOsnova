@@ -2216,10 +2216,15 @@ a:focus-visible {
     left: 10px;
     width: auto;
   }
-  .messenger-shell { display: block; }
+  .messenger-shell {
+    display: block;
+    height: var(--chat-viewport-height, 100dvh);
+    min-height: 0;
+    overflow: hidden;
+  }
   .chat-sidebar,
   .chat-stage { position: absolute; inset: 0; }
-  .chat-stage { display: none; }
+  .chat-stage { display: none; min-height: 0; }
   .messenger-shell.chat-open .chat-sidebar { display: none; }
   .messenger-shell.chat-open .chat-stage { display: flex; }
   .sidebar-header,
@@ -2229,10 +2234,19 @@ a:focus-visible {
   .mobile-back { display: inline-grid; }
   .menu-placeholder { display: none; }
   .chat-header { padding-inline: 7px 11px; }
-  .message-area { padding: 13px 9px; }
+  .message-area {
+    min-height: 0;
+    padding: 13px 9px;
+    overflow-anchor: none;
+    scroll-padding-bottom: 10px;
+    -webkit-overflow-scrolling: touch;
+  }
   .messages-list { width: 100%; }
   .message-stack { max-width: 82%; }
-  .composer-wrap { padding: 7px 7px max(7px, env(safe-area-inset-bottom)); }
+  .composer-wrap {
+    flex: 0 0 auto;
+    padding: 7px 7px max(7px, env(safe-area-inset-bottom));
+  }
   .composer-hint { display: none; }
   .composer { border-radius: 16px; }
   .details-panel { width: 100%; }

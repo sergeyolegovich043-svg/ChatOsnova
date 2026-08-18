@@ -306,7 +306,13 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, a:focus-visib
   .mobile-brand { display: inline-flex; margin-bottom: 27px; }
   .auth-heading { margin-top: 24px; }
   .auth-heading h2 { font-size: 28px; }
-  .messenger-shell { display: block; padding: 0; }
+  .messenger-shell {
+    display: block;
+    height: var(--chat-viewport-height, 100dvh);
+    min-height: 0;
+    padding: 0;
+    overflow: hidden;
+  }
   .chat-sidebar, .chat-stage { height: 100%; border: 0; border-radius: 0; }
   .messenger-shell:not(.chat-open) .chat-sidebar { display: flex; }
   .messenger-shell:not(.chat-open) .chat-stage { display: none; }
@@ -318,7 +324,13 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, a:focus-visib
   .sidebar-brand { justify-content: center; }
   .conversation-list { padding-inline: 8px; }
   .conversation-row { padding: 10px 8px; }
-  .message-area { padding: 18px 8px 8px; }
+  .message-area {
+    min-height: 0;
+    padding: 18px 8px 8px;
+    overflow-anchor: none;
+    scroll-padding-bottom: 10px;
+    -webkit-overflow-scrolling: touch;
+  }
   .composer-wrap { padding: 7px 7px max(7px,env(safe-area-inset-bottom)); }
   .composer { border-radius: 17px; }
   .details-panel { width: 100%; }

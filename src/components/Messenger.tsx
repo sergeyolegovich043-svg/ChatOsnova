@@ -49,6 +49,7 @@ import {
 } from "@phosphor-icons/react";
 import { io, type Socket } from "socket.io-client";
 import { api } from "../api";
+import { isChatNearBottom, scrollTopAfterPrepend } from "../chat-scroll";
 import { featureFlags } from "../features";
 import { applyReadReceipt, messageDeliveryState, shouldShowPopup, upsertMessage } from "../message-state";
 import {
@@ -262,7 +263,11 @@ export function Messenger({ user, setUser, onLogout, canInstall, installApp, the
   const conversationsRef = useRef<Conversation[]>([]);
   const popupTimersRef = useRef(new Map<string, number>());
   const readRequestsRef = useRef(new Set<string>());
-  const messagesEndRef = useRef<HTMLDivElement | null>(null);
+  const messengerShellRef = useRef<HTMLElement | null>(null);
+  const messageAreaRef = useRef<HTMLDivElement | null>(null);
+  const keepMessagesAtBottomRef = useRef(true);
+  const initialScrollConversationRef = useRef<string | null>(activeId);
+  const viewportSyncingRef = useRef(false);
   const globalSearchInputRef = useRef<HTMLInputElement | null>(null);
   const petEnabledRef = useRef(petEnabled);
   const petPreferencesRef = useRef(petPreferences);
@@ -276,6 +281,7 @@ export function Messenger({ user, setUser, onLogout, canInstall, installApp, the
 
   const activeConversation = conversations.find((conversation) => conversation.id === activeId) ?? null;
   const activeMessages = activeId ? messages[activeId] ?? [] : [];
+  const hasLoadedActiveMessages = activeId ? messages[activeId] !== undefined : false;
   const totalUnreadCount = useMemo(() => conversations.reduce((total, conversation) => total + conversation.unreadCount, 0), [conversations]);
   const petQuiet = isPetQuiet(petPreferences);
   const petActivity: PetActivity | null = globalSearchLoading
@@ -680,10 +686,73 @@ export function Messenger({ user, setUser, onLogout, canInstall, installApp, the
     return () => { cancelled = true; };
   }, [activeId]);
 
+  const scrollMessagesToBottom = useCallback((behavior: ScrollBehavior = "auto") => {
+    const messageArea = messageAreaRef.current;
+    if (!messageArea) return;
+    messageArea.scrollTo({ top: messageArea.scrollHeight, behavior });
+    keepMessagesAtBottomRef.current = true;
+  }, []);
+
   useEffect(() => {
-    if (!activeId || messagesLoading || olderLoading) return;
-    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [activeId, activeMessages.length, messagesLoading, olderLoading]);
+    keepMessagesAtBottomRef.current = true;
+    initialScrollConversationRef.current = activeId;
+  }, [activeId]);
+
+  useEffect(() => {
+    if (!activeId || messagesLoading || !hasLoadedActiveMessages) return;
+    const initialScroll = initialScrollConversationRef.current === activeId;
+    if (!initialScroll && !keepMessagesAtBottomRef.current) return;
+    const frame = window.requestAnimationFrame(() => {
+      scrollMessagesToBottom(initialScroll ? "auto" : "smooth");
+      if (initialScrollConversationRef.current === activeId) initialScrollConversationRef.current = null;
+    });
+    return () => window.cancelAnimationFrame(frame);
+  }, [activeId, activeMessages.length, hasLoadedActiveMessages, messagesLoading, scrollMessagesToBottom]);
+
+  useEffect(() => {
+    const shell = messengerShellRef.current;
+    const visualViewport = window.visualViewport;
+    const mobileViewport = window.matchMedia("(max-width: 760px)");
+    let frame = 0;
+    let settleFrame = 0;
+
+    const syncViewport = () => {
+      window.cancelAnimationFrame(frame);
+      window.cancelAnimationFrame(settleFrame);
+      const shouldKeepBottom = keepMessagesAtBottomRef.current;
+      viewportSyncingRef.current = true;
+      frame = window.requestAnimationFrame(() => {
+        if (mobileViewport.matches) {
+          const viewportHeight = visualViewport?.height ?? window.innerHeight;
+          shell?.style.setProperty("--chat-viewport-height", `${Math.round(viewportHeight)}px`);
+        } else {
+          shell?.style.removeProperty("--chat-viewport-height");
+        }
+        settleFrame = window.requestAnimationFrame(() => {
+          if (shouldKeepBottom) scrollMessagesToBottom("auto");
+          viewportSyncingRef.current = false;
+        });
+      });
+    };
+
+    syncViewport();
+    visualViewport?.addEventListener("resize", syncViewport);
+    visualViewport?.addEventListener("scroll", syncViewport);
+    window.addEventListener("resize", syncViewport);
+    window.addEventListener("orientationchange", syncViewport);
+    mobileViewport.addEventListener("change", syncViewport);
+    return () => {
+      window.cancelAnimationFrame(frame);
+      window.cancelAnimationFrame(settleFrame);
+      viewportSyncingRef.current = false;
+      visualViewport?.removeEventListener("resize", syncViewport);
+      visualViewport?.removeEventListener("scroll", syncViewport);
+      window.removeEventListener("resize", syncViewport);
+      window.removeEventListener("orientationchange", syncViewport);
+      mobileViewport.removeEventListener("change", syncViewport);
+      shell?.style.removeProperty("--chat-viewport-height");
+    };
+  }, [scrollMessagesToBottom]);
 
   useEffect(() => {
     if (!highlightedMessageId || messagesLoading) return;
@@ -911,6 +980,10 @@ export function Messenger({ user, setUser, onLogout, canInstall, installApp, the
 
   async function loadOlder() {
     if (!activeId || !activeMessages.length) return;
+    const messageArea = messageAreaRef.current;
+    const previousScrollHeight = messageArea?.scrollHeight ?? 0;
+    const previousScrollTop = messageArea?.scrollTop ?? 0;
+    keepMessagesAtBottomRef.current = false;
     setOlderLoading(true);
     try {
       const result = await api.messages(activeId, activeMessages[0].createdAt);
@@ -921,6 +994,11 @@ export function Messenger({ user, setUser, onLogout, canInstall, installApp, the
         )
       }));
       setHasMore((current) => ({ ...current, [activeId]: result.hasMore }));
+      window.requestAnimationFrame(() => window.requestAnimationFrame(() => {
+        if (!messageArea || activeIdRef.current !== activeId) return;
+        messageArea.scrollTop = scrollTopAfterPrepend(previousScrollTop, previousScrollHeight, messageArea.scrollHeight);
+        keepMessagesAtBottomRef.current = isChatNearBottom(messageArea);
+      }));
     } catch (caught) {
       showToast(caught instanceof Error ? caught.message : "Не удалось загрузить историю");
     } finally {
@@ -1070,6 +1148,7 @@ export function Messenger({ user, setUser, onLogout, canInstall, installApp, the
     const conversationId = activeId;
     const clientId = crypto.randomUUID();
     const pending = createPendingMessage(conversationId, body, attachments, replyTo, clientId);
+    keepMessagesAtBottomRef.current = true;
     setSending(true);
     socketRef.current?.emit("typing:stop", activeId);
     setMessages((current) => ({
@@ -1393,7 +1472,7 @@ export function Messenger({ user, setUser, onLogout, canInstall, installApp, the
     : undefined;
 
   return (
-    <main className={`messenger-shell ${activeId ? "chat-open" : ""}`}>
+    <main ref={messengerShellRef} className={`messenger-shell ${activeId ? "chat-open" : ""}`}>
       <aside className="chat-sidebar">
         <header className="sidebar-header">
           <button className="profile-trigger" onClick={() => setProfileOpen(true)} aria-label="Открыть профиль">
@@ -1608,7 +1687,14 @@ export function Messenger({ user, setUser, onLogout, canInstall, installApp, the
               </div>
             )}
 
-            <div className="message-area">
+            <div
+              ref={messageAreaRef}
+              className="message-area"
+              onScroll={(event) => {
+                if (viewportSyncingRef.current) return;
+                keepMessagesAtBottomRef.current = isChatNearBottom(event.currentTarget);
+              }}
+            >
               {messagesLoading && <div className="center-loader"><span className="loader" />Загружаем сообщения…</div>}
               {!messagesLoading && hasMore[activeConversation.id] && (
                 <button className="load-older" onClick={loadOlder} disabled={olderLoading}><ArrowDown size={15} />{olderLoading ? "Загрузка…" : "Показать предыдущие"}</button>
@@ -1752,7 +1838,6 @@ export function Messenger({ user, setUser, onLogout, canInstall, installApp, the
                   </article>
                 )}
               </div>
-              <div ref={messagesEndRef} />
             </div>
 
             <footer className="composer-wrap">
