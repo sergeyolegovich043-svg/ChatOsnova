@@ -49,17 +49,25 @@ import {
 } from "@phosphor-icons/react";
 import { io, type Socket } from "socket.io-client";
 import { api } from "../api";
+import { isChatNearBottom, scrollTopAfterPrepend } from "../chat-scroll";
 import { featureFlags } from "../features";
 import { applyReadReceipt, messageDeliveryState, shouldShowPopup, upsertMessage } from "../message-state";
+import { playIncomingMessageSound, unlockNotificationSound } from "../notification-sound";
 import {
   hasNativePetBridge,
+  isPetQuiet,
   notifyNativePet,
+  PET_NOTIFICATION_COOLDOWN_MS,
   readPetEnabled,
+  readPetPreferences,
   savePetEnabled,
+  savePetPreferences,
   syncNativePetActivity,
   syncNativePet,
   type PetActivity,
-  type PetNotification
+  type PetNotification,
+  type PetPreferences,
+  type PetReaction
 } from "../pet";
 import type { Attachment, ChatFolder, ColorTheme, Conversation, Member, Message, MessageSearchResult, User } from "../types";
 import type { RecordedMediaKind } from "../media";
@@ -248,21 +256,35 @@ export function Messenger({ user, setUser, onLogout, canInstall, installApp, the
   const [toast, setToast] = useState("");
   const [messagePopups, setMessagePopups] = useState<MessagePopup[]>([]);
   const [petEnabled, setPetEnabled] = useState(() => readPetEnabled(featureFlags.petCompanion));
+  const [petPreferences, setPetPreferences] = useState<PetPreferences>(readPetPreferences);
   const [petNotification, setPetNotification] = useState<PetNotification | null>(null);
+  const [petReaction, setPetReaction] = useState<PetReaction | null>(null);
   const socketRef = useRef<Socket | null>(null);
   const activeIdRef = useRef<string | null>(activeId);
   const conversationsRef = useRef<Conversation[]>([]);
   const popupTimersRef = useRef(new Map<string, number>());
   const readRequestsRef = useRef(new Set<string>());
-  const messagesEndRef = useRef<HTMLDivElement | null>(null);
+  const messengerShellRef = useRef<HTMLElement | null>(null);
+  const messageAreaRef = useRef<HTMLDivElement | null>(null);
+  const keepMessagesAtBottomRef = useRef(true);
+  const initialScrollConversationRef = useRef<string | null>(activeId);
+  const viewportSyncingRef = useRef(false);
   const globalSearchInputRef = useRef<HTMLInputElement | null>(null);
   const petEnabledRef = useRef(petEnabled);
+  const petPreferencesRef = useRef(petPreferences);
+  const petReactionTimerRef = useRef(0);
+  const petNotificationTimerRef = useRef(0);
+  const lastPetNotificationAtRef = useRef(0);
+  const pendingPetNotificationRef = useRef<PetNotification | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const inputRef = useRef<HTMLTextAreaElement | null>(null);
   const typingTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const activeConversation = conversations.find((conversation) => conversation.id === activeId) ?? null;
   const activeMessages = activeId ? messages[activeId] ?? [] : [];
+  const hasLoadedActiveMessages = activeId ? messages[activeId] !== undefined : false;
+  const totalUnreadCount = useMemo(() => conversations.reduce((total, conversation) => total + conversation.unreadCount, 0), [conversations]);
+  const petQuiet = isPetQuiet(petPreferences);
   const petActivity: PetActivity | null = globalSearchLoading
     ? { type: "searching", source: "messages", label: "Ищу по перепискам" }
     : null;
@@ -279,8 +301,36 @@ export function Messenger({ user, setUser, onLogout, canInstall, installApp, the
     petEnabledRef.current = petEnabled;
     savePetEnabled(petEnabled);
     void syncNativePet(petEnabled);
-    if (!petEnabled) setPetNotification(null);
+    if (!petEnabled) {
+      setPetNotification(null);
+      setPetReaction(null);
+      window.clearTimeout(petNotificationTimerRef.current);
+      petNotificationTimerRef.current = 0;
+      pendingPetNotificationRef.current = null;
+    }
   }, [petEnabled]);
+
+  useEffect(() => {
+    petPreferencesRef.current = petPreferences;
+    savePetPreferences(petPreferences);
+    if (isPetQuiet(petPreferences)) {
+      setPetNotification(null);
+      setPetReaction(null);
+      window.clearTimeout(petNotificationTimerRef.current);
+      petNotificationTimerRef.current = 0;
+      pendingPetNotificationRef.current = null;
+    }
+    if (!petPreferences.quietUntil) return;
+    const remaining = petPreferences.quietUntil - Date.now();
+    if (remaining <= 0) {
+      setPetPreferences((current) => ({ ...current, quietUntil: null }));
+      return;
+    }
+    const timer = window.setTimeout(() => {
+      setPetPreferences((current) => ({ ...current, quietUntil: null }));
+    }, remaining);
+    return () => window.clearTimeout(timer);
+  }, [petPreferences]);
 
   useEffect(() => {
     const nextActivity = petEnabled ? petActivity : null;
@@ -293,7 +343,41 @@ export function Messenger({ user, setUser, onLogout, canInstall, installApp, the
   useEffect(() => () => {
     popupTimersRef.current.forEach((timer) => window.clearTimeout(timer));
     popupTimersRef.current.clear();
+    window.clearTimeout(petReactionTimerRef.current);
+    window.clearTimeout(petNotificationTimerRef.current);
   }, []);
+
+  const triggerPetReaction = useCallback((nextReaction: PetReaction) => {
+    if (!featureFlags.petCompanion || !petEnabledRef.current || isPetQuiet(petPreferencesRef.current)) return;
+    window.clearTimeout(petReactionTimerRef.current);
+    setPetReaction(nextReaction);
+    petReactionTimerRef.current = window.setTimeout(() => setPetReaction(null), 5_000);
+  }, []);
+
+  const deliverPetNotification = useCallback((notification: PetNotification) => {
+    lastPetNotificationAtRef.current = Date.now();
+    setPetNotification(notification);
+    void notifyNativePet(notification);
+  }, []);
+
+  const queuePetNotification = useCallback((notification: PetNotification) => {
+    pendingPetNotificationRef.current = notification;
+    const remaining = PET_NOTIFICATION_COOLDOWN_MS - (Date.now() - lastPetNotificationAtRef.current);
+    if (remaining <= 0) {
+      window.clearTimeout(petNotificationTimerRef.current);
+      petNotificationTimerRef.current = 0;
+      pendingPetNotificationRef.current = null;
+      deliverPetNotification(notification);
+      return;
+    }
+    if (petNotificationTimerRef.current) return;
+    petNotificationTimerRef.current = window.setTimeout(() => {
+      petNotificationTimerRef.current = 0;
+      const pending = pendingPetNotificationRef.current;
+      pendingPetNotificationRef.current = null;
+      if (pending && petEnabledRef.current && !isPetQuiet(petPreferencesRef.current)) deliverPetNotification(pending);
+    }, remaining);
+  }, [deliverPetNotification]);
 
   const showToast = useCallback((message: string) => {
     setToast(message);
@@ -360,16 +444,16 @@ export function Messenger({ user, setUser, onLogout, canInstall, installApp, the
       avatarUrl: isGroup ? conversation.avatarUrl : message.sender.avatarUrl
     };
     setMessagePopups((current) => [popup, ...current.filter((item) => item.id !== popup.id)].slice(0, 3));
-    if (featureFlags.petCompanion && petEnabledRef.current) {
+    if (featureFlags.petCompanion && petEnabledRef.current && !isPetQuiet(petPreferencesRef.current)) {
+      const showPreview = petPreferencesRef.current.showMessagePreview;
       const notification: PetNotification = {
         id: popup.id,
         conversationId: popup.conversationId,
         title: popup.title,
         subtitle: popup.subtitle,
-        body: popup.body
+        body: showPreview ? popup.body : "Текст сообщения скрыт"
       };
-      setPetNotification(notification);
-      void notifyNativePet(notification);
+      queuePetNotification(notification);
     }
     const previousTimer = popupTimersRef.current.get(popup.id);
     if (previousTimer) window.clearTimeout(previousTimer);
@@ -377,12 +461,26 @@ export function Messenger({ user, setUser, onLogout, canInstall, installApp, the
       popupTimersRef.current.delete(popup.id);
       setMessagePopups((current) => current.filter((item) => item.id !== popup.id));
     }, 6200));
-  }, [user.username]);
+  }, [queuePetNotification, user.username]);
 
   useEffect(() => {
     void loadConversations();
     void loadFolders();
   }, [loadConversations, loadFolders]);
+
+  useEffect(() => {
+    const unlock = () => {
+      void unlockNotificationSound();
+      window.removeEventListener("pointerdown", unlock);
+      window.removeEventListener("keydown", unlock);
+    };
+    window.addEventListener("pointerdown", unlock, { passive: true });
+    window.addEventListener("keydown", unlock);
+    return () => {
+      window.removeEventListener("pointerdown", unlock);
+      window.removeEventListener("keydown", unlock);
+    };
+  }, []);
 
   useEffect(() => {
     const socket = io({ withCredentials: true });
@@ -394,6 +492,23 @@ export function Messenger({ user, setUser, onLogout, canInstall, installApp, the
         && document.visibilityState === "visible"
         && document.hasFocus();
       const conversationAtArrival = conversationsRef.current.find((conversation) => conversation.id === message.conversationId);
+      const notificationsAllowed = !conversationAtArrival || shouldShowPopup(
+        conversationAtArrival.notificationMode ?? "all",
+        conversationAtArrival.muteUntil ?? null,
+        message.body,
+        user.username
+      );
+      if (!isOwnMessage && !message.silent && notificationsAllowed && document.visibilityState === "visible" && document.hasFocus()) {
+        void playIncomingMessageSound();
+      }
+      if (!isOwnMessage && message.reply?.senderId === user.id) {
+        triggerPetReaction({
+          id: `incoming-reply:${message.id}`,
+          type: "reply",
+          conversationId: message.conversationId,
+          messageId: message.id
+        });
+      }
       setMessages((current) => ({
         ...current,
         [message.conversationId]: upsertMessage(current[message.conversationId] ?? [], message)
@@ -548,7 +663,7 @@ export function Messenger({ user, setUser, onLogout, canInstall, installApp, the
       socket.disconnect();
       socketRef.current = null;
     };
-  }, [loadConversations, markConversationRead, queueMessagePopup, user.id]);
+  }, [loadConversations, markConversationRead, queueMessagePopup, triggerPetReaction, user.id]);
 
   useEffect(() => {
     const readVisibleConversation = () => {
@@ -595,10 +710,73 @@ export function Messenger({ user, setUser, onLogout, canInstall, installApp, the
     return () => { cancelled = true; };
   }, [activeId]);
 
+  const scrollMessagesToBottom = useCallback((behavior: ScrollBehavior = "auto") => {
+    const messageArea = messageAreaRef.current;
+    if (!messageArea) return;
+    messageArea.scrollTo({ top: messageArea.scrollHeight, behavior });
+    keepMessagesAtBottomRef.current = true;
+  }, []);
+
   useEffect(() => {
-    if (!activeId || messagesLoading || olderLoading) return;
-    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [activeId, activeMessages.length, messagesLoading, olderLoading]);
+    keepMessagesAtBottomRef.current = true;
+    initialScrollConversationRef.current = activeId;
+  }, [activeId]);
+
+  useEffect(() => {
+    if (!activeId || messagesLoading || !hasLoadedActiveMessages) return;
+    const initialScroll = initialScrollConversationRef.current === activeId;
+    if (!initialScroll && !keepMessagesAtBottomRef.current) return;
+    const frame = window.requestAnimationFrame(() => {
+      scrollMessagesToBottom(initialScroll ? "auto" : "smooth");
+      if (initialScrollConversationRef.current === activeId) initialScrollConversationRef.current = null;
+    });
+    return () => window.cancelAnimationFrame(frame);
+  }, [activeId, activeMessages.length, hasLoadedActiveMessages, messagesLoading, scrollMessagesToBottom]);
+
+  useEffect(() => {
+    const shell = messengerShellRef.current;
+    const visualViewport = window.visualViewport;
+    const mobileViewport = window.matchMedia("(max-width: 760px)");
+    let frame = 0;
+    let settleFrame = 0;
+
+    const syncViewport = () => {
+      window.cancelAnimationFrame(frame);
+      window.cancelAnimationFrame(settleFrame);
+      const shouldKeepBottom = keepMessagesAtBottomRef.current;
+      viewportSyncingRef.current = true;
+      frame = window.requestAnimationFrame(() => {
+        if (mobileViewport.matches) {
+          const viewportHeight = visualViewport?.height ?? window.innerHeight;
+          shell?.style.setProperty("--chat-viewport-height", `${Math.round(viewportHeight)}px`);
+        } else {
+          shell?.style.removeProperty("--chat-viewport-height");
+        }
+        settleFrame = window.requestAnimationFrame(() => {
+          if (shouldKeepBottom) scrollMessagesToBottom("auto");
+          viewportSyncingRef.current = false;
+        });
+      });
+    };
+
+    syncViewport();
+    visualViewport?.addEventListener("resize", syncViewport);
+    visualViewport?.addEventListener("scroll", syncViewport);
+    window.addEventListener("resize", syncViewport);
+    window.addEventListener("orientationchange", syncViewport);
+    mobileViewport.addEventListener("change", syncViewport);
+    return () => {
+      window.cancelAnimationFrame(frame);
+      window.cancelAnimationFrame(settleFrame);
+      viewportSyncingRef.current = false;
+      visualViewport?.removeEventListener("resize", syncViewport);
+      visualViewport?.removeEventListener("scroll", syncViewport);
+      window.removeEventListener("resize", syncViewport);
+      window.removeEventListener("orientationchange", syncViewport);
+      mobileViewport.removeEventListener("change", syncViewport);
+      shell?.style.removeProperty("--chat-viewport-height");
+    };
+  }, [scrollMessagesToBottom]);
 
   useEffect(() => {
     if (!highlightedMessageId || messagesLoading) return;
@@ -797,8 +975,39 @@ export function Messenger({ user, setUser, onLogout, canInstall, installApp, the
     window.requestAnimationFrame(() => globalSearchInputRef.current?.focus());
   }
 
+  function openUnreadFolder() {
+    setSearch("");
+    setActiveFolder("unread");
+    if (window.matchMedia("(max-width: 760px)").matches) closeMobileConversation();
+  }
+
+  async function openPetMessage(conversationId: string, messageId: string) {
+    if ((messages[conversationId] ?? []).some((message) => message.id === messageId)) {
+      openConversation(conversationId, messageId);
+      return;
+    }
+    try {
+      const context = await api.messageContext(messageId);
+      setMessages((current) => ({
+        ...current,
+        [context.conversationId]: context.messages.reduce(upsertMessage, current[context.conversationId] ?? [])
+      }));
+      openConversation(context.conversationId, messageId);
+    } catch (caught) {
+      showToast(caught instanceof Error ? caught.message : "Не удалось открыть сообщение");
+    }
+  }
+
+  function setPetQuiet(quiet: boolean) {
+    setPetPreferences((current) => ({ ...current, quietUntil: quiet ? Date.now() + 60 * 60_000 : null }));
+  }
+
   async function loadOlder() {
     if (!activeId || !activeMessages.length) return;
+    const messageArea = messageAreaRef.current;
+    const previousScrollHeight = messageArea?.scrollHeight ?? 0;
+    const previousScrollTop = messageArea?.scrollTop ?? 0;
+    keepMessagesAtBottomRef.current = false;
     setOlderLoading(true);
     try {
       const result = await api.messages(activeId, activeMessages[0].createdAt);
@@ -809,6 +1018,11 @@ export function Messenger({ user, setUser, onLogout, canInstall, installApp, the
         )
       }));
       setHasMore((current) => ({ ...current, [activeId]: result.hasMore }));
+      window.requestAnimationFrame(() => window.requestAnimationFrame(() => {
+        if (!messageArea || activeIdRef.current !== activeId) return;
+        messageArea.scrollTop = scrollTopAfterPrepend(previousScrollTop, previousScrollHeight, messageArea.scrollHeight);
+        keepMessagesAtBottomRef.current = isChatNearBottom(messageArea);
+      }));
     } catch (caught) {
       showToast(caught instanceof Error ? caught.message : "Не удалось загрузить историю");
     } finally {
@@ -958,6 +1172,7 @@ export function Messenger({ user, setUser, onLogout, canInstall, installApp, the
     const conversationId = activeId;
     const clientId = crypto.randomUUID();
     const pending = createPendingMessage(conversationId, body, attachments, replyTo, clientId);
+    keepMessagesAtBottomRef.current = true;
     setSending(true);
     socketRef.current?.emit("typing:stop", activeId);
     setMessages((current) => ({
@@ -999,6 +1214,19 @@ export function Messenger({ user, setUser, onLogout, canInstall, installApp, the
     setReplyTo(null);
     setDraft(message.body);
     setAttachments(message.attachments);
+    inputRef.current?.focus();
+  }
+
+  function beginReply(message: Message) {
+    setMessageMenu(null);
+    setReplyTo(message);
+    setEditing(null);
+    triggerPetReaction({
+      id: `compose-reply:${message.id}:${Date.now()}`,
+      type: "reply",
+      conversationId: message.conversationId,
+      messageId: message.id
+    });
     inputRef.current?.focus();
   }
 
@@ -1268,7 +1496,7 @@ export function Messenger({ user, setUser, onLogout, canInstall, installApp, the
     : undefined;
 
   return (
-    <main className={`messenger-shell ${activeId ? "chat-open" : ""}`}>
+    <main ref={messengerShellRef} className={`messenger-shell ${activeId ? "chat-open" : ""}`}>
       <aside className="chat-sidebar">
         <header className="sidebar-header">
           <button className="profile-trigger" onClick={() => setProfileOpen(true)} aria-label="Открыть профиль">
@@ -1483,7 +1711,14 @@ export function Messenger({ user, setUser, onLogout, canInstall, installApp, the
               </div>
             )}
 
-            <div className="message-area">
+            <div
+              ref={messageAreaRef}
+              className="message-area"
+              onScroll={(event) => {
+                if (viewportSyncingRef.current) return;
+                keepMessagesAtBottomRef.current = isChatNearBottom(event.currentTarget);
+              }}
+            >
               {messagesLoading && <div className="center-loader"><span className="loader" />Загружаем сообщения…</div>}
               {!messagesLoading && hasMore[activeConversation.id] && (
                 <button className="load-older" onClick={loadOlder} disabled={olderLoading}><ArrowDown size={15} />{olderLoading ? "Загрузка…" : "Показать предыдущие"}</button>
@@ -1584,7 +1819,7 @@ export function Messenger({ user, setUser, onLogout, canInstall, installApp, the
                               style={{ left: messageMenu.x, top: messageMenu.y }}
                             >
                               <button type="button" role="menuitem" onClick={() => { setMessageMenu(null); setReactionPickerFor(message.id); }}><SmilePlus size={19} weight="regular" /><span>Добавить реакцию</span></button>
-                              <button type="button" role="menuitem" onClick={() => { setMessageMenu(null); setReplyTo(message); setEditing(null); inputRef.current?.focus(); }}><Reply size={19} weight="regular" /><span>Ответить</span></button>
+                              <button type="button" role="menuitem" onClick={() => beginReply(message)}><Reply size={19} weight="regular" /><span>Ответить</span></button>
                               <button type="button" role="menuitem" onClick={() => { setMessageMenu(null); setForwardingMessages([message]); }}><Forward size={19} weight="regular" /><span>Переслать</span></button>
                               <button type="button" role="menuitem" onClick={() => { setMessageMenu(null); void copyMessageText([message]); }}><Copy size={19} /><span>Копировать текст</span></button>
                               <button type="button" role="menuitem" onClick={() => { setMessageMenu(null); void copyMessageLink(message); }}><LinkSimple size={19} /><span>Копировать ссылку</span></button>
@@ -1627,7 +1862,6 @@ export function Messenger({ user, setUser, onLogout, canInstall, installApp, the
                   </article>
                 )}
               </div>
-              <div ref={messagesEndRef} />
             </div>
 
             <footer className="composer-wrap">
@@ -1749,7 +1983,9 @@ export function Messenger({ user, setUser, onLogout, canInstall, installApp, the
           onThemeChange={onThemeChange}
           petAvailable={featureFlags.petCompanion}
           petEnabled={petEnabled}
+          petPreferences={petPreferences}
           onPetEnabledChange={setPetEnabled}
+          onPetPreferencesChange={setPetPreferences}
           onUserChange={updateCurrentUser}
           onLogout={logout}
           onClose={() => setProfileOpen(false)}
@@ -1778,7 +2014,15 @@ export function Messenger({ user, setUser, onLogout, canInstall, installApp, the
           <PetCompanion
             activity={petActivity}
             notification={petNotification}
+            reaction={petReaction}
+            unreadCount={totalUnreadCount}
+            quiet={petQuiet}
             onOpenConversation={openConversation}
+            onOpenUnread={openUnreadFolder}
+            onOpenMessage={(conversationId, messageId) => void openPetMessage(conversationId, messageId)}
+            onOpenSearch={focusGlobalSearch}
+            onOpenSettings={() => setProfileOpen(true)}
+            onQuietChange={setPetQuiet}
             onDisable={() => setPetEnabled(false)}
           />
         </Suspense>
@@ -1789,32 +2033,65 @@ export function Messenger({ user, setUser, onLogout, canInstall, installApp, the
 }
 
 function AttachmentGrid({ attachments }: { attachments: Attachment[] }) {
+  const [preview, setPreview] = useState<Attachment | null>(null);
   const voices = attachments.filter((attachment) => attachment.kind === "voice" || attachment.mimeType.startsWith("audio/"));
   const circles = attachments.filter((attachment) => attachment.kind === "video_circle");
   const images = attachments.filter((attachment) => attachment.kind !== "video_circle" && attachment.mimeType.startsWith("image/"));
   const mediaIds = new Set([...voices, ...circles, ...images].map((attachment) => attachment.id));
   const files = attachments.filter((attachment) => !mediaIds.has(attachment.id));
+
+  useEffect(() => {
+    if (!preview) return;
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    const closeOnEscape = (event: globalThis.KeyboardEvent) => {
+      if (event.key === "Escape") setPreview(null);
+    };
+    window.addEventListener("keydown", closeOnEscape);
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      window.removeEventListener("keydown", closeOnEscape);
+    };
+  }, [preview]);
+
   return (
-    <div className="attachment-grid-wrap">
-      {voices.map((attachment) => <VoiceMessage key={attachment.id} attachment={attachment} />)}
-      {circles.map((attachment) => <VideoCircleMessage key={attachment.id} attachment={attachment} />)}
-      {images.length > 0 && (
-        <div className={`image-grid images-${Math.min(images.length, 4)}`}>
-          {images.map((attachment) => (
-            <a key={attachment.id} href={attachment.url} target="_blank" rel="noreferrer" aria-label={`Открыть ${attachment.name}`}>
-              <img src={attachment.url} alt={attachment.name} loading="lazy" />
-              <span><ImageIcon size={14} />{attachment.name}</span>
-            </a>
-          ))}
-        </div>
+    <>
+      <div className="attachment-grid-wrap">
+        {voices.map((attachment) => <VoiceMessage key={attachment.id} attachment={attachment} />)}
+        {circles.map((attachment) => <VideoCircleMessage key={attachment.id} attachment={attachment} />)}
+        {images.length > 0 && (
+          <div className={`image-grid images-${Math.min(images.length, 4)}`}>
+            {images.map((attachment) => (
+              <button className="image-grid-item" key={attachment.id} type="button" onClick={() => setPreview(attachment)} aria-label={`Открыть ${attachment.name}`}>
+                <img src={attachment.url} alt={attachment.name} loading="lazy" />
+                <span><ImageIcon size={14} />{attachment.name}</span>
+              </button>
+            ))}
+          </div>
+        )}
+        {files.map((attachment) => (
+          <a className="file-attachment" key={attachment.id} href={attachment.url} download={attachment.name}>
+            <span className="file-icon"><File size={20} /></span>
+            <span><strong>{attachment.name}</strong><small>{fileSize(attachment.size)}</small></span>
+            <Download size={17} />
+          </a>
+        ))}
+      </div>
+      {preview && createPortal(
+        <div className="media-lightbox" role="dialog" aria-modal="true" aria-label={`Просмотр ${preview.name}`} onMouseDown={(event) => {
+          if (event.target === event.currentTarget) setPreview(null);
+        }}>
+          <div className="media-lightbox-card">
+            <div className="media-lightbox-actions">
+              <a href={preview.url} download={preview.name} aria-label={`Скачать ${preview.name}`}><Download size={20} /></a>
+              <button type="button" autoFocus onClick={() => setPreview(null)} aria-label="Закрыть изображение"><X size={22} /></button>
+            </div>
+            <img src={preview.url} alt={preview.name} />
+            <span className="media-lightbox-name">{preview.name}</span>
+          </div>
+        </div>,
+        document.body
       )}
-      {files.map((attachment) => (
-        <a className="file-attachment" key={attachment.id} href={attachment.url} target="_blank" rel="noreferrer">
-          <span className="file-icon"><File size={20} /></span>
-          <span><strong>{attachment.name}</strong><small>{fileSize(attachment.size)}</small></span>
-          <Download size={17} />
-        </a>
-      ))}
-    </div>
+    </>
   );
 }

@@ -4,7 +4,7 @@ import { VitePWA } from "vite-plugin-pwa";
 
 export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, process.cwd(), "");
-  const isDevelopment = mode === "development";
+  const isDevelopment = mode === "development" || env.VITE_APP_ENV === "development";
   const devApiTarget = env.VITE_DEV_API_TARGET || "http://127.0.0.1:3000";
 
   return {
@@ -24,7 +24,7 @@ export default defineConfig(({ mode }) => {
         theme_color: "#0b0914",
         background_color: "#0b0914",
         display: "standalone",
-        orientation: "any",
+        orientation: "portrait-primary",
         start_url: "/",
         scope: "/",
         prefer_related_applications: false,

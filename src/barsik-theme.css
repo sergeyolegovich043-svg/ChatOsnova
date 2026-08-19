@@ -118,7 +118,7 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, a:focus-visib
 .auth-form input:focus, .stacked-label input:focus, .stacked-label textarea:focus, .profile-form input:focus, .profile-form textarea:focus { border-color: rgba(165,137,255,.62); background: rgba(12,9,20,.46); box-shadow: 0 0 0 4px rgba(139,108,255,.1), inset 0 1px 0 rgba(255,255,255,.04); }
 .input-prefix { border-color: rgba(255,255,255,.085); color: #9d88f5; background: rgba(4,3,8,.25); }
 .input-prefix:focus-within { border-color: rgba(165,137,255,.62); box-shadow: 0 0 0 4px rgba(139,108,255,.1); }
-.input-prefix input { background: transparent; box-shadow: none; }
+.input-prefix input { border: 0; border-radius: 0; background: transparent; box-shadow: none; }
 .auth-submit { margin-top: 7px; }
 .auth-note { color: #746e80; }
 .form-error { border-color: rgba(255,97,130,.22); color: #ff9aaf; background: rgba(255,80,117,.09); }
@@ -155,7 +155,7 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, a:focus-visib
 .conversation-row.active .conversation-preview-line { color: #aaa2b9; }
 .unread-badge { color: #fff; background: linear-gradient(145deg,#9e7cff,#7958ee); box-shadow: 0 5px 15px rgba(110,75,223,.32); }
 .avatar { border: 1px solid rgba(255,255,255,.18); color: #fff; box-shadow: 0 8px 22px rgba(0,0,0,.22), inset 0 1px 0 rgba(255,255,255,.18); }
-.avatar > img { border: 1px solid rgba(255,255,255,.08); }
+.avatar-image > img { border: 1px solid rgba(255,255,255,.08); }
 .avatar-online { border-color: #171321; background: #54dfa0; box-shadow: 0 0 0 2px rgba(84,223,160,.12), 0 0 12px rgba(84,223,160,.45); }
 .install-strip { margin: 0 10px 10px; border: 1px solid rgba(159,128,255,.16); border-radius: 15px; color: #bba9ff; background: linear-gradient(120deg,rgba(139,108,255,.13),rgba(255,119,131,.06)); }
 .install-strip:hover { border-color: rgba(172,146,255,.3); background: linear-gradient(120deg,rgba(139,108,255,.22),rgba(255,119,131,.1)); }
@@ -306,7 +306,13 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, a:focus-visib
   .mobile-brand { display: inline-flex; margin-bottom: 27px; }
   .auth-heading { margin-top: 24px; }
   .auth-heading h2 { font-size: 28px; }
-  .messenger-shell { display: block; padding: 0; }
+  .messenger-shell {
+    display: block;
+    height: var(--chat-viewport-height, 100dvh);
+    min-height: 0;
+    padding: 0;
+    overflow: hidden;
+  }
   .chat-sidebar, .chat-stage { height: 100%; border: 0; border-radius: 0; }
   .messenger-shell:not(.chat-open) .chat-sidebar { display: flex; }
   .messenger-shell:not(.chat-open) .chat-stage { display: none; }
@@ -318,7 +324,13 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, a:focus-visib
   .sidebar-brand { justify-content: center; }
   .conversation-list { padding-inline: 8px; }
   .conversation-row { padding: 10px 8px; }
-  .message-area { padding: 18px 8px 8px; }
+  .message-area {
+    min-height: 0;
+    padding: 18px 8px 8px;
+    overflow-anchor: none;
+    scroll-padding-bottom: 10px;
+    -webkit-overflow-scrolling: touch;
+  }
   .composer-wrap { padding: 7px 7px max(7px,env(safe-area-inset-bottom)); }
   .composer { border-radius: 17px; }
   .details-panel { width: 100%; }

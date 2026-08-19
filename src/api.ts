@@ -195,5 +195,6 @@ export const api = {
     request<{ ok: true }>("/api/push/subscribe", {
       method: "POST",
       body: JSON.stringify(subscription)
-    })
+    }),
+  testPush: () => request<{ delivered: number }>("/api/push/test", { method: "POST" })
 };

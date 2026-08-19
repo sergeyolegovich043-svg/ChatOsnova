@@ -77,7 +77,8 @@ export async function createSession(
 ) {
   const token = randomBytes(32).toString("base64url");
   const hash = tokenHash(token);
-  const expiresAt = new Date(Date.now() + config.sessionDays * 24 * 60 * 60 * 1000);
+  const sessionDurationMs = config.sessionDays * 24 * 60 * 60 * 1000;
+  const expiresAt = new Date(Date.now() + sessionDurationMs);
   await query(
     `INSERT INTO sessions (token_hash, user_id, user_agent, ip, expires_at)
      VALUES ($1, $2, $3, $4, $5)`,
@@ -92,6 +93,7 @@ export async function createSession(
     secure: config.secureCookies,
     path: "/",
     priority: "high",
+    maxAge: sessionDurationMs,
     expires: expiresAt
   });
 }

@@ -26,7 +26,9 @@ export function Avatar({ user, label, color, imageUrl, size = "md", online }: Av
       style={{ background: user?.avatarColor ?? color ?? "#7657ff" }}
       aria-label={name}
     >
-      {source ? <img src={source} alt="" draggable={false} /> : initials || "B"}
+      {source
+        ? <span className="avatar-image"><img src={source} alt="" draggable={false} /></span>
+        : initials || "B"}
       {isOnline && <span className="avatar-online" aria-label="В сети" />}
     </span>
   );
