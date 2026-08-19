@@ -1,5 +1,5 @@
-import { useEffect, useState } from "react";
-import { api } from "./api";
+import { useCallback, useEffect, useState } from "react";
+import { ApiError, api } from "./api";
 import { AuthScreen } from "./components/AuthScreen";
 import { BrandLogo } from "./components/BrandLogo";
 import { InstallAppPrompt } from "./components/InstallAppPrompt";
@@ -38,6 +38,7 @@ export default function App() {
   const [notificationPromptOpen, setNotificationPromptOpen] = useState(false);
   const [notificationStatus, setNotificationStatus] = useState<PushNotificationStatus>("idle");
   const [notificationError, setNotificationError] = useState("");
+  const [sessionError, setSessionError] = useState("");
 
   function changeTheme(nextTheme: ColorTheme) {
     document.documentElement.dataset.theme = nextTheme;
@@ -50,11 +51,42 @@ export default function App() {
     setTheme(nextTheme);
   }
 
+  const loadSession = useCallback(async () => {
+    setLoading(true);
+    setSessionError("");
+    for (let attempt = 0; attempt < 3; attempt += 1) {
+      try {
+        const { user: currentUser } = await api.me();
+        setUser(currentUser);
+        setLoading(false);
+        return;
+      } catch (caught) {
+        if (caught instanceof ApiError && caught.status === 401) {
+          setUser(null);
+          setLoading(false);
+          return;
+        }
+        if (attempt < 2) {
+          await new Promise((resolve) => window.setTimeout(resolve, 500 * (attempt + 1)));
+          continue;
+        }
+        setSessionError("Не удалось проверить подключение. Аккаунт сохранён — повторный вход не требуется.");
+      }
+    }
+    setLoading(false);
+  }, []);
+
   useEffect(() => {
-    api.me()
-      .then(({ user: currentUser }) => setUser(currentUser))
-      .catch(() => setUser(null))
-      .finally(() => setLoading(false));
+    void loadSession();
+  }, [loadSession]);
+
+  useEffect(() => {
+    if (!isStandaloneMode()) return;
+    const orientation = window.screen.orientation as ScreenOrientation & {
+      lock?: (orientation: "portrait-primary") => Promise<void>;
+    };
+    if (typeof orientation?.lock !== "function") return;
+    void orientation.lock("portrait-primary").catch(() => undefined);
   }, []);
 
   useEffect(() => {
@@ -184,6 +216,15 @@ export default function App() {
         <strong>BarsikChat</strong>
         <small>Ваше пространство общения</small>
         <span className="loader" aria-label="Загрузка" />
+      </main>
+    );
+  } else if (sessionError) {
+    content = (
+      <main className="splash-screen session-reconnect-screen">
+        <BrandLogo size="lg" className="splash-mark" />
+        <strong>Связь временно недоступна</strong>
+        <small role="alert">{sessionError}</small>
+        <button className="primary-button" type="button" onClick={() => void loadSession()}>Повторить</button>
       </main>
     );
   } else if (!user) {

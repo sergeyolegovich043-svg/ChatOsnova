@@ -2033,32 +2033,65 @@ export function Messenger({ user, setUser, onLogout, canInstall, installApp, the
 }
 
 function AttachmentGrid({ attachments }: { attachments: Attachment[] }) {
+  const [preview, setPreview] = useState<Attachment | null>(null);
   const voices = attachments.filter((attachment) => attachment.kind === "voice" || attachment.mimeType.startsWith("audio/"));
   const circles = attachments.filter((attachment) => attachment.kind === "video_circle");
   const images = attachments.filter((attachment) => attachment.kind !== "video_circle" && attachment.mimeType.startsWith("image/"));
   const mediaIds = new Set([...voices, ...circles, ...images].map((attachment) => attachment.id));
   const files = attachments.filter((attachment) => !mediaIds.has(attachment.id));
+
+  useEffect(() => {
+    if (!preview) return;
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    const closeOnEscape = (event: globalThis.KeyboardEvent) => {
+      if (event.key === "Escape") setPreview(null);
+    };
+    window.addEventListener("keydown", closeOnEscape);
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      window.removeEventListener("keydown", closeOnEscape);
+    };
+  }, [preview]);
+
   return (
-    <div className="attachment-grid-wrap">
-      {voices.map((attachment) => <VoiceMessage key={attachment.id} attachment={attachment} />)}
-      {circles.map((attachment) => <VideoCircleMessage key={attachment.id} attachment={attachment} />)}
-      {images.length > 0 && (
-        <div className={`image-grid images-${Math.min(images.length, 4)}`}>
-          {images.map((attachment) => (
-            <a key={attachment.id} href={attachment.url} target="_blank" rel="noreferrer" aria-label={`Открыть ${attachment.name}`}>
-              <img src={attachment.url} alt={attachment.name} loading="lazy" />
-              <span><ImageIcon size={14} />{attachment.name}</span>
-            </a>
-          ))}
-        </div>
+    <>
+      <div className="attachment-grid-wrap">
+        {voices.map((attachment) => <VoiceMessage key={attachment.id} attachment={attachment} />)}
+        {circles.map((attachment) => <VideoCircleMessage key={attachment.id} attachment={attachment} />)}
+        {images.length > 0 && (
+          <div className={`image-grid images-${Math.min(images.length, 4)}`}>
+            {images.map((attachment) => (
+              <button className="image-grid-item" key={attachment.id} type="button" onClick={() => setPreview(attachment)} aria-label={`Открыть ${attachment.name}`}>
+                <img src={attachment.url} alt={attachment.name} loading="lazy" />
+                <span><ImageIcon size={14} />{attachment.name}</span>
+              </button>
+            ))}
+          </div>
+        )}
+        {files.map((attachment) => (
+          <a className="file-attachment" key={attachment.id} href={attachment.url} download={attachment.name}>
+            <span className="file-icon"><File size={20} /></span>
+            <span><strong>{attachment.name}</strong><small>{fileSize(attachment.size)}</small></span>
+            <Download size={17} />
+          </a>
+        ))}
+      </div>
+      {preview && createPortal(
+        <div className="media-lightbox" role="dialog" aria-modal="true" aria-label={`Просмотр ${preview.name}`} onMouseDown={(event) => {
+          if (event.target === event.currentTarget) setPreview(null);
+        }}>
+          <div className="media-lightbox-card">
+            <div className="media-lightbox-actions">
+              <a href={preview.url} download={preview.name} aria-label={`Скачать ${preview.name}`}><Download size={20} /></a>
+              <button type="button" autoFocus onClick={() => setPreview(null)} aria-label="Закрыть изображение"><X size={22} /></button>
+            </div>
+            <img src={preview.url} alt={preview.name} />
+            <span className="media-lightbox-name">{preview.name}</span>
+          </div>
+        </div>,
+        document.body
       )}
-      {files.map((attachment) => (
-        <a className="file-attachment" key={attachment.id} href={attachment.url} target="_blank" rel="noreferrer">
-          <span className="file-icon"><File size={20} /></span>
-          <span><strong>{attachment.name}</strong><small>{fileSize(attachment.size)}</small></span>
-          <Download size={17} />
-        </a>
-      ))}
-    </div>
+    </>
   );
 }
